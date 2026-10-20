@@ -19,9 +19,9 @@
 
 | # | 议题 | 要定什么 | 不定会怎样 |
 |---|---|---|---|
-| I1 | 框架与最低版本 | SwiftUI / UIKit / 混用；iOS 16 还是 17 | 决定能用的 API、长表格与精细排版的实现方式，返工成本最高 |
-| I2 | 数据库访问 | GRDB 还是裸 `sqlite3`；FTS5 不可用时怎么办 | 决定数据层全部代码的形态 |
-| I3 | 工程结构 | 单 target 还是分 target；数据层放 Swift Package 还是 app 内 | 影响后续能不能复用、能不能做 Mac 版 |
+| I1 ✅ | 框架与最低版本 | 已定：[0008](../decisions/0008-platform.md) SwiftUI，iOS/macOS 26，三端同一 target | — |
+| I2 ✅ | 数据库访问 | 已定：[0009](../decisions/0009-data-access.md) GRDB，只读，libz 解压，正文哈希自检 | — |
+| I3 ✅ | 工程结构 | 已定：[0010](../decisions/0010-project-structure.md) 单 target + `Packages/ContentKit`，提交 `.xcodeproj` | — |
 | I4 | 排版基线 | 正文字号、行高、字距、页边距、是否两端对齐；中文标点禁则 | "更好读"全靠这条，改一次要重看所有页面 |
 | I5 | 滚动还是分页 | 长滚动 / 分页翻页 / 两者可切换 | 交互骨架，后改等于重做阅读页 |
 | I6 | 目录首屏 | 80 个顶层节点怎么组织；`补遗` 与 `未收录于目录` 怎么呈现 | 用户的第一印象 |

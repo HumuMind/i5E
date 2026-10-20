@@ -12,6 +12,7 @@ detail=none 丢掉位置信息，索引比 trigram 小一半多，代价是不�
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 import zlib
@@ -85,10 +86,14 @@ def build(records: list[dict], toc: dict, info: dict, out_path: Path) -> dict:
     )
 
     pages, fts = [], []
+    digest = hashlib.sha256()
     for i, r in enumerate(records, 1):
         blob = zlib.compress(
             json.dumps(r["blocks"], ensure_ascii=False, separators=(",", ":")).encode(), 9)
         text = page_text(r["blocks"])
+        # 跨语言自检用：Swift 侧重算这个哈希，对不上说明 page_text 移植错了
+        digest.update(text.encode())
+        digest.update(b"\n")
         pages.append((i, r["path"], r.get("title") or "",
                       json.dumps(r.get("style") or {}, ensure_ascii=False),
                       json.dumps(r.get("css") or [], ensure_ascii=False), blob))
@@ -105,6 +110,8 @@ def build(records: list[dict], toc: dict, info: dict, out_path: Path) -> dict:
         "toc": toc,
         "build": info,
         "tokenizer": "unigram+bigram/detail=none",
+        # 定义：按页序把 page_text 依次追加，每页后加一个 \n，UTF-8 编码后 sha256
+        "text_sha256": digest.hexdigest(),
     }
     con.executemany("INSERT INTO meta(key,value) VALUES(?,?)",
                     [(k, json.dumps(v, ensure_ascii=False)) for k, v in meta.items()])

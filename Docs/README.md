@@ -34,5 +34,8 @@
 | D3 | 存储与检索 | [0007](decisions/0007-storage.md) · 已定（单库 SQLite，单字+双字索引） |
 | D6 | 内容范围 | [0006](decisions/0006-scope.md) · 已定（全收，目录 100% 覆盖） |
 | V1 | 转换验证 | [0003](decisions/0003-translation-verification.md) · 已定（C1–C10，全量通过） |
+| I1 | 平台与框架 | [0008](decisions/0008-platform.md) · 已定（SwiftUI，iOS/macOS 26） |
+| I2 | 数据访问 | [0009](decisions/0009-data-access.md) · 已定（GRDB，只读） |
+| I3 | 工程结构 | [0010](decisions/0010-project-structure.md) · 已定（单 target + 本地包） |
 | D4 | 追新机制 | 待排 |
 | D5 | 许可与分发 | 待排（不阻塞写代码，但别拖到首次提审） |
