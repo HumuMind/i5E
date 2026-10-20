@@ -11,6 +11,7 @@
 
 ```bash
 python3 Tools/content/run.py build            # 全量，默认用 CPU 核数-1 并行
+python3 Tools/content/run.py build --pack     # 另外生成原文归档并跑 C8
 python3 Tools/content/run.py build --jobs 1   # 单进程，方便看 traceback
 python3 Tools/content/run.py build --limit 400 --no-c5
 ```
@@ -25,6 +26,9 @@ python3 Tools/content/run.py build --limit 400 --no-c5
 | `report.md` | 人读的报告：检查结果、block 分布、法术抽取、已知损失、黄金样本 |
 | `report.json` | 同上，机器读 |
 | `baseline.json` | C6 的回归基线，下次运行用来比对 |
+| `pack/source.tar.gz` | 原文归档，逐字节（--pack）|
+| `pack/manifest.json` | 每个文件的 sha256（--pack）|
+| `pack/content.jsonl.gz` | 阅读层压缩产物（--pack）|
 | `samples.json` | 黄金样本及其入选理由 |
 | `preview/index.html` | **先看这个**：左侧渲染结果，右侧 block 结构 |
 

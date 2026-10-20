@@ -10,6 +10,8 @@
 from __future__ import annotations
 
 import argparse
+import gzip
+import hashlib
 import json
 import os
 import sys
@@ -30,6 +32,7 @@ SRC = ROOT / "DND5e_chm"
 NON_CONTENT = {"template", "template2", "空白页模板"}
 OUT = ROOT / "build"
 SAMPLES = int(os.environ.get("SAMPLES", "40"))
+PACK_EXT = {".htm", ".html", ".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
 
 
 def collect(limit: int | None = None) -> list[str]:
@@ -193,6 +196,7 @@ def spell_stats(records) -> dict:
 
 def build_report(records, results, spells, samples, elapsed, paths_total) -> str:
     c1, c2, c3, c4r, c5r, c6 = (results[k] for k in ("c1", "c2", "c3", "c4", "c5", "c6"))
+    c8r, pack = results.get("c8"), results.get("pack")
     enc = Counter(r["encoding"] for r in records)
     fam = Counter(r["_check"]["family"] for r in records)
     blocks = Counter()
@@ -229,6 +233,9 @@ def build_report(records, results, spells, samples, elapsed, paths_total) -> str
         L.append(f"| C6 回归哈希 | {'通过' if c6['pass'] else '**' + str(c6['changed']) + ' 页变了**'} | 基线变更 |")
     else:
         L.append("| C6 回归哈希 | 首次运行，已写基线 | |")
+    if c8r:
+        L.append(f"| C8 原文还原 | {'通过' if c8r['pass'] else '**失败**'} | "
+                 f"{c8r['checked']} 页 sha256 一致，且用原文重解析得到同一份 block |")
     L.append("")
 
     if not c1["pass"]:
@@ -284,6 +291,40 @@ def build_report(records, results, spells, samples, elapsed, paths_total) -> str
     return "\n".join(L)
 
 
+def build_pack(out: Path) -> dict:
+    """把原文按原字节打进归档。这是"能还原"的唯一实现方式。"""
+    import tarfile
+
+    pack_dir = out / "pack"
+    pack_dir.mkdir(exist_ok=True)
+    archive = pack_dir / "source.tar.gz"
+    manifest: dict[str, dict] = {}
+    with tarfile.open(archive, "w:gz", compresslevel=6) as tf:
+        for dp, dns, fns in os.walk(SRC):
+            dns[:] = [d for d in dns if d != ".git"]
+            rel_dir = os.path.relpath(dp, SRC)
+            if rel_dir.split(os.sep)[0] in NON_CONTENT:
+                continue
+            for fn in fns:
+                if os.path.splitext(fn)[1].lower() not in PACK_EXT:
+                    continue
+                full = os.path.join(dp, fn)
+                name = os.path.relpath(full, SRC).replace(os.sep, "/")
+                with open(full, "rb") as fh:
+                    digest = hashlib.sha256(fh.read()).hexdigest()
+                manifest[name] = {"name": name, "sha256": digest,
+                                  "bytes": os.path.getsize(full)}
+                tf.add(full, arcname=name, recursive=False)
+    (pack_dir / "manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+    with open(out / "content.jsonl", "rb") as src, gzip.open(pack_dir / "content.jsonl.gz", "wb", 9) as dst:
+        dst.write(src.read())
+    return {"archive": archive, "manifest": pack_dir / "manifest.json",
+            "bytes": archive.stat().st_size,
+            "block_bytes": (pack_dir / "content.jsonl.gz").stat().st_size,
+            "files": len(manifest)}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["build"], nargs="?", default="build")
@@ -291,6 +332,7 @@ def main() -> int:
     ap.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     ap.add_argument("--no-c5", action="store_true")
     ap.add_argument("--samples", type=int, default=SAMPLES)
+    ap.add_argument("--pack", action="store_true", help="生成原文归档并跑 C8")
     args = ap.parse_args()
 
     t0 = time.time()
@@ -346,6 +388,15 @@ def main() -> int:
 
     baseline_path.write_text(json.dumps({r["path"]: r["hash"] for r in records}, indent=0))
 
+    c8r = None
+    pack = None
+    if args.pack:
+        t1 = time.time()
+        pack = build_pack(OUT)
+        c8r = check.c8(records, pack["archive"], pack["manifest"])
+        print(f"C8 原文还原: {'通过' if c8r['pass'] else c8r} "
+              f"({time.time() - t1:.1f}s, 归档 {pack['bytes'] / 1048576:.1f} MB)", flush=True)
+
     spells = spell_stats(records)
     print(f"法术: {spells['total']} 条", flush=True)
 
@@ -365,13 +416,14 @@ def main() -> int:
     preview.write_preview(prev_dir, sample_recs, samples, SRC)
 
     elapsed = time.time() - t0
-    report = build_report(records, {"c1": c1, "c2": c2, "c3": c3, "c4": c4r, "c5": c5r, "c6": c6},
+    report = build_report(records, {"c1": c1, "c2": c2, "c3": c3, "c4": c4r, "c5": c5r,
+                                    "c6": c6, "c8": c8r, "pack": pack},
                           spells, samples, elapsed, len(paths))
     (OUT / "report.md").write_text(report, encoding="utf-8")
     (OUT / "samples.json").write_text(json.dumps(samples, ensure_ascii=False, indent=2), encoding="utf-8")
     (OUT / "report.json").write_text(json.dumps({
         "pages": len(records), "elapsed": elapsed, "c1": c1, "c2": c2, "c3": c3,
-        "c4": c4r, "c5": c5r, "c6": c6, "spells": spells,
+        "c4": c4r, "c5": c5r, "c6": c6, "c8": c8r, "spells": spells,
     }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print(f"\n完成 {elapsed:.1f}s → {OUT}", flush=True)

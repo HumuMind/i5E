@@ -268,6 +268,44 @@ def _first_block_diff(a, b):
     return {"equal": True}
 
 
+# ---------------- C8 原文还原 ----------------
+
+def c8(records, archive, manifest_path) -> dict:
+    """原文层闭环：sha256 一致 + 用原文重新解析能得到同一份 block。"""
+    import hashlib
+    import tarfile
+    from pathlib import Path
+
+    man = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    by_path = {r["path"]: r for r in records}
+    missing, sha_bad, reparsed_bad = [], [], []
+    seen = set()
+    # tar.gz 只能顺序读，按成员遍历一次，别按路径回取
+    with tarfile.open(archive, "r:gz") as tf:
+        for member in tf:
+            if not member.isfile():
+                continue
+            rel = member.name.lstrip("./")
+            rec = by_path.get(rel)
+            if rec is None:
+                continue
+            seen.add(rel)
+            data = tf.extractfile(member).read()
+            m = man.get(rel) or {}
+            if len(data) != m.get("bytes") or hashlib.sha256(data).hexdigest() != m.get("sha256"):
+                sha_bad.append(rel)
+                continue
+            if parse_page(rel, data)["hash"] != rec["hash"]:
+                reparsed_bad.append(rel)
+    missing = [p for p in by_path if p not in seen]
+    return {
+        "checked": len(records),
+        "missing": len(missing), "sha_bad": len(sha_bad), "reparse_bad": len(reparsed_bad),
+        "examples": (missing + sha_bad + reparsed_bad)[:20],
+        "pass": not (missing or sha_bad or reparsed_bad),
+    }
+
+
 # ---------------- C6 回归哈希 ----------------
 
 def c6(records, baseline: dict | None) -> dict:

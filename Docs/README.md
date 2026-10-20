@@ -31,6 +31,7 @@
 | D2 | 解析发生在哪一层 | [0002](decisions/0002-pipeline.md) · 已定（构建期预生成，内容包留接口） |
 | D3 | 存储与检索 | 待排 |
 | V1 | 转换验证 | [0003](decisions/0003-translation-verification.md) · 已定（C1–C6 已实现，全量通过） |
+| D1b | 原文存档 | [0004](decisions/0004-source-archive.md) · 已定（两层内容包，C8 闭环） |
 | D4 | 追新机制 | 待排 |
 | D5 | 许可与分发 | 待排（不阻塞写代码，但别拖到首次提审） |
 | D6 | MVP 收哪几本 | 待排 |
