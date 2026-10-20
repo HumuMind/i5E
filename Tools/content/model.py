@@ -14,7 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections import Counter, defaultdict
+from collections import Counter
 
 from lxml import html as LH
 
@@ -378,8 +378,6 @@ class Builder:
             for node in pending:
                 self._inline_into(node, {}, runs)
             self._ids = []
-            for node in []:
-                pass
             runs = _merge(runs)
             pending.clear()
             if norm_text(_runs_text(runs)) or any(r.get("img") for r in runs):
@@ -790,7 +788,6 @@ def _collect_ids(blocks: list[dict]) -> set[str]:
 
 CN_NUM = {"零": 0, "一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6,
           "七": 7, "八": 8, "九": 9, "十": 10}
-SPELL_FIELDS = ("施法时间", "施法距离", "法术成分", "持续时间")
 
 
 def _runs_text(runs: list[dict]) -> str:

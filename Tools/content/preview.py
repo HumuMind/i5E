@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import os
 import posixpath
 import re
 from pathlib import Path
-from urllib.parse import quote
 
 from model import SEP
 from render import esc, render_blocks, render_runs
@@ -118,13 +116,33 @@ def _rewrite_imgs(blocks, page_path: str, root: Path):
                     _rewrite_imgs(c["blocks"], page_path, root)
 
 
+def _page_css(rec: dict, root: Path) -> str:
+    """把源页引用的样式表读进来，faithful 渲染才有意义。"""
+    page = rec["path"]
+    chunks = []
+    for href in rec.get("css") or ():
+        for cand in (posixpath.join(posixpath.dirname(page), href), href.lstrip("/")):
+            f = root / posixpath.normpath(cand)
+            if f.exists():
+                chunks.append(f.read_bytes().decode("gb18030", "replace"))
+                break
+    return "\n".join(chunks)
+
+
+FAITHFUL_RESET = """body{margin:0;background:#fff;color:#111;}
+img{max-width:100%;height:auto;} table{border-collapse:collapse;}
+"""
+
+
 def write_preview(out: Path, records: list[dict], samples: list[dict], root: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
     cards = []
     for i, rec in enumerate(records, 1):
         meta = samples[i - 1]
         _rewrite_imgs(rec["blocks"], rec["path"], root)
-        body = render_blocks(rec["blocks"])
+        # 预览的目的是核对中国转换保真度，所以按源页样式渲染
+        body = render_blocks(rec["blocks"], defaults=rec.get("style"), faithful=True)
+        page_css = _page_css(rec, root)
         outline = "".join(
             f'<li><span class="tag">{esc(_tag(b))}</span>'
             f'<span class="txt">{esc(_brief(b))}</span></li>'
@@ -132,7 +150,8 @@ def write_preview(out: Path, records: list[dict], samples: list[dict], root: Pat
         )
         c = rec["_check"]
         page = f"""<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
-<title>{esc(rec['title'] or rec['path'])}</title><style>{CSS}</style></head><body>
+<title>{esc(rec['title'] or rec['path'])}</title><style>{CSS}</style>
+<style>{FAITHFUL_RESET}{page_css}</style></head><body>
 <div class="topbar"><a href="index.html">← 样本列表</a>
 <span>{i}/{len(records)} · {esc(rec['path'])}</span></div>
 <div class="wrap"><div class="main">{body or '<p>（空页）</p>'}</div>
@@ -150,8 +169,8 @@ def write_preview(out: Path, records: list[dict], samples: list[dict], root: Pat
     index = f"""<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 <title>i5E 解析预览</title><style>{CSS}</style></head><body>
 <div class="idx"><h1>解析预览</h1>
-<div class="sub">黄金样本 {len(records)} 页。左侧为 block 重新渲染的结果，页内右侧栏是解析出的结构。
-点开任一页，对照原文与结构，检查有没有塌掉的地方。</div>
+<div class="sub">黄金样本 {len(records)} 页。左侧按**源页样式**（颜色/字号/字体族/class）重新渲染，
+右侧是解析出的结构。对照原文看有没有塌掉、错位、丢样式的地方。</div>
 {''.join(cards)}
 </div></body></html>"""
     (out / "index.html").write_text(index, encoding="utf-8")

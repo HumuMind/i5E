@@ -1,17 +1,19 @@
 # 内容解析原型
 
-把 `DND5e_chm/` 的 HTML 转成 block 序列，跑 C1–C6 检查，产出报告与预览。
+把 `DND5e_chm/` 的 HTML 转成 block 序列，跑 C1–C10 检查，产出报告、预览和一份 App 可直接读的 SQLite。
 对应决策：[0001 内容模型](../../Docs/decisions/0001-content-model.md)、
 [0002 管线](../../Docs/decisions/0002-pipeline.md)、
-[0003 转换验证](../../Docs/decisions/0003-translation-verification.md)。
+[0003 转换验证](../../Docs/decisions/0003-translation-verification.md)、
+[0007 存储与检索](../../Docs/decisions/0007-storage.md)。
 
-这是验证用的原型，不是最终管线：没有数据库、没有内容包、没有增量构建。
+现状：内容侧已经可用，但**没有增量构建**（每次全量重跑，12 秒；带 pack 约 36 秒），
+也没有 iOS 端。构建清单里目前不写 `upstreamCommit` 以外的版本策略。
 
 ## 跑
 
 ```bash
 python3 Tools/content/run.py build            # 全量，默认用 CPU 核数-1 并行
-python3 Tools/content/run.py build --pack     # 另外生成原文归档并跑 C8
+python3 Tools/content/run.py build --pack     # 另外生成原文归档、content.db，跑 C8 与 C10
 python3 Tools/content/run.py build --jobs 1   # 单进程，方便看 traceback
 python3 Tools/content/run.py build --limit 400 --no-c5
 ```
@@ -43,10 +45,10 @@ python3 Tools/content/run.py build --limit 400 --no-c5
 |---|---|
 | `model.py` | 解码、HTML → block、法术实体抽取 |
 | `render.py` | block → HTML，以及 C5 用的规范化视图 |
-| `pack.py` | 打单文件 SQLite：pages / FTS5 / meta，含查询与校验 |
 | `check.py` | C1–C10 |
 | `preview.py` | 黄金样本预览页 |
 | `toc.py` | 解析 `.wcp` 里的目录树，统计覆盖率 |
+| `pack.py` | 打单文件 SQLite（pages / FTS5 / meta），含查询与 C10 校验 |
 | `run.py` | 命令行、语料遍历、样本挑选、报告、构建清单 |
 
 ## 两条不变式

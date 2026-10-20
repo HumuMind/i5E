@@ -26,7 +26,8 @@
 pack/
   source.tar.gz     原文，逐字节（保留原编码），事实来源
   manifest.json     path → {sha256, bytes}
-  content.jsonl.gz  阅读层，block 序列，可从原文重建
+  content.jsonl.gz  阅读层，block 序列，可从原文重建（交换格式，调试用）
+  content.db        同一份阅读层的 SQLite 形态，App 直接读（见 0007）
 ```
 
 三条规则：
@@ -40,8 +41,9 @@ pack/
 | 项 | 大小 |
 |---|---|
 | 原文 HTML + 资源 | 102 MB（HTML 计）|
-| `source.tar.gz` | 30 MB |
-| `content.jsonl.gz` | 12.5 MB |
+| `source.tar.gz` | 27.8 MB |
+| `content.jsonl.gz` | 12.3 MB |
+| `content.db` | 32.2 MB |
 
 代价约 30 MB，换来的是"任何一页都能逐字节取回"，以及一个可以随时重跑的解析器。
 

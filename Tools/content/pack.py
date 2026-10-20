@@ -113,8 +113,7 @@ def build(records: list[dict], toc: dict, info: dict, out_path: Path) -> dict:
     con.commit()
     size = out_path.stat().st_size
     con.close()
-    return {"bytes": size, "pages": len(records),
-            "indexed_chars": sum(len(t) for _, t in fts)}
+    return {"bytes": size, "pages": len(records)}
 
 
 def open_db(path: Path) -> sqlite3.Connection:
@@ -123,7 +122,10 @@ def open_db(path: Path) -> sqlite3.Connection:
 
 
 def search(con: sqlite3.Connection, query: str, limit: int = 200) -> list[dict]:
-    """候选召回 + 子串校验 + 按命中次数排序。客户端要用同一套逻辑。"""
+    """候选召回 + 子串校验 + 够数即停。客户端要用同一套逻辑。
+
+    返回顺序是页面在书里的先后，不是相关度：detail=none 下没有词频可用。
+    """
     q = query.strip().lower()
     if not q:
         return []
@@ -148,8 +150,17 @@ def search(con: sqlite3.Connection, query: str, limit: int = 200) -> list[dict]:
     return found
 
 
-def verify(con: sqlite3.Connection, queries: list[str], records: list[dict]) -> dict:
-    """拿内容库本身当标准答案，逐查询比对召回是否完全一致。"""
+def write_meta(path: Path, key: str, value) -> None:
+    con = sqlite3.connect(path)
+    con.execute("INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)",
+                (key, json.dumps(value, ensure_ascii=False)))
+    con.commit()
+    con.close()
+
+
+def verify(con: sqlite3.Connection, queries: list[str], records: list[dict],
+           toc_paths: set[str] | None = None) -> dict:
+    """拿内容库本身当标准答案，逐查询比对召回；顺带核对页数与目录可达性。"""
     truth = {r["path"]: page_text(r["blocks"]).lower() for r in records}
     bad = []
     for q in queries:
@@ -163,4 +174,16 @@ def verify(con: sqlite3.Connection, queries: list[str], records: list[dict]) -> 
                 "extra": len(got - want),
                 "example": sorted(want - got)[:2] + sorted(got - want)[:2],
             })
-    return {"queries": len(queries), "mismatch": len(bad), "examples": bad[:5], "pass": not bad}
+    db_paths = {row[0] for row in con.execute("SELECT path FROM pages")}
+    missing = sorted(set(truth) - db_paths)
+    extra = sorted(db_paths - set(truth))
+    toc_bad = sorted((toc_paths or set()) - db_paths)
+    return {
+        "queries": len(queries),
+        "mismatch": len(bad),
+        "examples": bad[:5],
+        "pages_missing": len(missing),
+        "pages_extra": len(extra),
+        "toc_unreachable": len(toc_bad),
+        "pass": not bad and not missing and not extra and not toc_bad,
+    }

@@ -16,7 +16,7 @@ import json
 import os
 import sys
 import time
-from collections import Counter, defaultdict
+from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -270,6 +270,9 @@ def build_report(records, results, spells, samples, elapsed, paths_total) -> str
         L.append(f"| C6 回归哈希 | {'通过' if c6['pass'] else '**' + str(c6['changed']) + ' 页变了**'} | 与基线比对 |")
     else:
         L.append("| C6 回归哈希 | 首次运行，已写基线 | |")
+    if c8r:
+        L.append(f"| C8 原文还原 | {'通过' if c8r['pass'] else '**失败**'} | "
+                 f"{c8r['checked']} 页 sha256 一致，且用原文重解析得到同一份 block |")
     if c9r:
         un = ", ".join(f"{b} {n}" for b, n in c9r["uncovered_books"][:4])
         L.append(f"| C9 目录完整性 | {'通过' if c9r['pass'] else '**' + str(c9r['broken']) + ' 条断链**'} | "
@@ -278,9 +281,6 @@ def build_report(records, results, spells, samples, elapsed, paths_total) -> str
     if c10r:
         L.append(f"| C10 检索索引 | {'通过' if c10r['pass'] else '**不一致**'} | "
                  f"{c10r['queries']} 条探针查询，召回与内容库逐页比对完全一致 |")
-    if c8r:
-        L.append(f"| C8 原文还原 | {'通过' if c8r['pass'] else '**失败**'} | "
-                 f"{c8r['checked']} 页 sha256 一致，且用原文重解析得到同一份 block |")
     L.append("")
 
     if not c1["pass"]:
@@ -521,7 +521,8 @@ def main() -> int:
         t1 = time.time()
         db = pack_mod.build(records, toc_data, {}, OUT / "pack" / "content.db")
         con = pack_mod.open_db(OUT / "pack" / "content.db")
-        c10r = pack_mod.verify(con, SEARCH_PROBES, records)
+        toc_paths = {n["u"].split("#")[0] for n in toc_mod.walk(toc_data["nodes"]) if n.get("u")}
+        c10r = pack_mod.verify(con, SEARCH_PROBES, records, toc_paths)
         con.close()
         print(f"C10 检索索引: {'通过' if c10r['pass'] else c10r} "
               f"({len(SEARCH_PROBES)} 条查询 · 库 {db['bytes'] / 1048576:.1f} MB · "
@@ -567,6 +568,8 @@ def main() -> int:
     (OUT / "build-info.json").write_text(json.dumps(info, ensure_ascii=False, indent=2),
                                          encoding="utf-8")
     if pack:
+        # 建库时还不知道构建清单（里面有 C10 结论），先建后补
+        pack_mod.write_meta(OUT / "pack" / "content.db", "build", info)
         (OUT / "pack" / "toc.json").write_text(json.dumps(toc_data, ensure_ascii=False),
                                                encoding="utf-8")
         (OUT / "pack" / "build-info.json").write_text(
