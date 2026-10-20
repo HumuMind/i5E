@@ -1,2 +1,11 @@
 # 上游内容副本，独立 Git 仓库，不提交到本项目
 DND5e_chm/
+
+# 构建产物：内容库、基线、报告、预览
+build/
+
+# Python
+__pycache__/
+*.pyc
+
+.DS_Store
