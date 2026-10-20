@@ -26,6 +26,8 @@ python3 Tools/content/run.py build --limit 400 --no-c5
 | `report.md` | 人读的报告：检查结果、block 分布、法术抽取、已知损失、黄金样本 |
 | `report.json` | 同上，机器读 |
 | `baseline.json` | C6 的回归基线，下次运行用来比对 |
+| `toc.json` | 从 `不全书.wcp` 解出的目录树 |
+| `build-info.json` | 构建清单：上游 commit、解析器指纹、内容版本 |
 | `pack/source.tar.gz` | 原文归档，逐字节（--pack）|
 | `pack/manifest.json` | 每个文件的 sha256（--pack）|
 | `pack/content.jsonl.gz` | 阅读层压缩产物（--pack）|
@@ -42,7 +44,8 @@ python3 Tools/content/run.py build --limit 400 --no-c5
 | `render.py` | block → HTML，以及 C5 用的规范化视图 |
 | `check.py` | C1–C6 |
 | `preview.py` | 黄金样本预览页 |
-| `run.py` | 命令行、语料遍历、样本挑选、报告 |
+| `toc.py` | 解析 `.wcp` 里的目录树，统计覆盖率 |
+| `run.py` | 命令行、语料遍历、样本挑选、报告、构建清单 |
 
 ## 两条不变式
 

@@ -269,6 +269,39 @@ def _first_block_diff(a, b):
     return {"equal": True}
 
 
+# ---------------- C9 目录完整性 ----------------
+
+def c9(toc: dict, paths: set[str]) -> dict:
+    """目录里的每个链接都要落到真实页面；顺便量一下目录覆盖了多少页。"""
+    import toc as toc_mod
+
+    nodes = list(toc_mod.walk(toc["nodes"]))
+    broken, covered = [], set()
+    for n in nodes:
+        u = n.get("u")
+        if not u:
+            continue
+        target = u.split("#")[0]
+        if target in paths:
+            covered.add(target)
+        else:
+            broken.append({"title": n["t"], "url": u})
+    return {
+        "entries": len(nodes),
+        "with_url": sum(1 for n in nodes if n.get("u")),
+        "broken": len(broken),
+        "broken_sample": broken[:20],
+        "covered": len(covered),
+        "pages": len(paths),
+        "coverage": round(len(covered) / max(1, len(paths)), 4),
+        "uncovered_books": Counter(
+            p.split("/")[0] for p in paths - covered
+        ).most_common(8),
+        "uncovered": len(paths - covered),
+        "pass": not broken,
+    }
+
+
 # ---------------- C8 原文还原 ----------------
 
 def c8(records, archive, manifest_path) -> dict:

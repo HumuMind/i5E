@@ -23,6 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import check  # noqa: E402
+import toc as toc_mod  # noqa: E402
 import model  # noqa: E402
 import preview  # noqa: E402
 
@@ -194,17 +195,38 @@ def spell_stats(records) -> dict:
 
 # ---------------- 报告 ----------------
 
+def count_blocks(blocks) -> Counter:
+    c: Counter = Counter()
+
+    def walk(bs):
+        for b in bs:
+            c[b["type"]] += 1
+            if b["type"] in ("div", "quote"):
+                walk(b["blocks"])
+            elif b["type"] == "list":
+                for it in b["items"]:
+                    walk(it["blocks"])
+            elif b["type"] == "table":
+                for row in b["rows"]:
+                    for cell in row["cells"]:
+                        walk(cell["blocks"])
+
+    walk(blocks)
+    return c
+
+
 def build_report(records, results, spells, samples, elapsed, paths_total) -> str:
     c1, c2, c3, c4r, c5r, c6 = (results[k] for k in ("c1", "c2", "c3", "c4", "c5", "c6"))
     c8r, pack = results.get("c8"), results.get("pack")
+    c9r, info = results.get("c9"), results.get("info")
     enc = Counter(r["encoding"] for r in records)
     fam = Counter(r["_check"]["family"] for r in records)
     blocks = Counter()
     for r in records:
-        for b in r["blocks"]:
-            blocks[b["type"]] += 1
+        blocks += count_blocks(r["blocks"])
     text_bytes = sum(len(r["_check"]["block_text"]) for r in records)
-    json_bytes = sum(len(json.dumps(r["blocks"], ensure_ascii=False).encode()) for r in records)
+    content_path = OUT / "content.jsonl"
+    json_bytes = content_path.stat().st_size if content_path.exists() else 0
 
     L = []
     L.append("# 解析原型报告\n")
@@ -221,18 +243,34 @@ def build_report(records, results, spells, samples, elapsed, paths_total) -> str
     L.append(f"| 来源 | {dict(fam)} |")
     L.append("")
 
+    if info:
+        u, p, t, ct = info["upstream"], info["parser"], info["toc"], info["content"]
+        L.append("## 构建信息\n")
+        L.append("| 项 | 值 |\n|---|---|")
+        L.append(f"| 上游 commit | `{u['short']}` {u['subject']}" + ("（工作区有改动）" if u["dirty"] else "") + " |")
+        L.append(f"| 上游提交时间 | {u['date']} |")
+        L.append(f"| 解析器指纹 | `{p['fingerprint']}` |")
+        L.append(f"| 内容版本 | `{ct['version']}` |")
+        L.append(f"| 目录 | {t['title']} · {t['entries']} 节点 / {t['roots']} 顶层 / {t['depth']} 层 |")
+        L.append("")
+
     L.append("## 检查\n")
     L.append("| 检查 | 结果 | 说明 |\n|---|---|---|")
     L.append(f"| C1 文本守恒 | {'通过' if c1['pass'] else '**失败 ' + str(c1['fail_count']) + ' 页**'} | 去空白后逐字符相等 |")
     L.append(f"| C2 节点覆盖 | {'通过' if c2['pass'] else '**有未知标签**'} | 白名单外标签：" + (", ".join(c2["unknown_tags"]) or "无") + " |")
-    L.append(f"| C3 锚点与链接 | {'通过' if c3['pass'] else '**有问题**'} | " +
+    L.append(f"| C3 锚点与链接 | {'通过' if c3['pass'] else '基线比对（上游自带）'} | " +
              " / ".join(f"{k} {v}" for k, v in sorted(c3["stats"].items())) + " |")
     L.append(f"| C4 schema | {'通过' if c4r['pass'] else '**' + str(c4r['bad_count']) + ' 页不合法**'} | |")
     L.append(f"| C5 往返保真 | {'通过' if c5r['pass'] else '**' + str(c5r['bad_count']) + ' 页不一致**'} | 检查 {c5r['checked']} 页 |")
     if c6["baseline"]:
-        L.append(f"| C6 回归哈希 | {'通过' if c6['pass'] else '**' + str(c6['changed']) + ' 页变了**'} | 基线变更 |")
+        L.append(f"| C6 回归哈希 | {'通过' if c6['pass'] else '**' + str(c6['changed']) + ' 页变了**'} | 与基线比对 |")
     else:
         L.append("| C6 回归哈希 | 首次运行，已写基线 | |")
+    if c9r:
+        un = ", ".join(f"{b} {n}" for b, n in c9r["uncovered_books"][:4])
+        L.append(f"| C9 目录完整性 | {'通过' if c9r['pass'] else '**' + str(c9r['broken']) + ' 条断链**'} | "
+                 f"{c9r['entries']} 条，覆盖 {c9r['covered']}/{c9r['pages']} 页 "
+                 f"({c9r['coverage']:.1%})；未覆盖 {c9r['uncovered']} 页（{un}） |")
     if c8r:
         L.append(f"| C8 原文还原 | {'通过' if c8r['pass'] else '**失败**'} | "
                  f"{c8r['checked']} 页 sha256 一致，且用原文重解析得到同一份 block |")
@@ -289,6 +327,53 @@ def build_report(records, results, spells, samples, elapsed, paths_total) -> str
         L.append(f"| {i} | `{s['path']}` | {s.get('chars', 0):,} / {s['blocks']} | {', '.join(s['why'])} |")
     L.append("")
     return "\n".join(L)
+
+
+def _git(path: Path, *args: str) -> str:
+    import subprocess
+
+    try:
+        r = subprocess.run(["git", "-C", str(path), *args],
+                           capture_output=True, text=True, timeout=20)
+        return r.stdout.strip()
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def parser_fingerprint() -> dict:
+    files = sorted(Path(__file__).resolve().parent.glob("*.py"))
+    acc = hashlib.sha256()
+    detail = {}
+    for f in files:
+        d = hashlib.sha256(f.read_bytes()).hexdigest()
+        detail[f.name] = d[:12]
+        acc.update(f.name.encode() + d.encode())
+    return {"fingerprint": acc.hexdigest()[:16], "files": detail}
+
+
+def build_info(records, toc_data, checks) -> dict:
+    commit = _git(SRC, "rev-parse", "HEAD")
+    parser = parser_fingerprint()
+    toc_stats = toc_mod.stats(toc_data)
+    seed = f"{commit}|{parser['fingerprint']}|{len(records)}|{toc_stats['entries']}"
+    return {
+        "upstream": {
+            "repo": "DND5eChm/DND5e_chm",
+            "commit": commit,
+            "short": commit[:9],
+            "date": _git(SRC, "log", "-1", "--format=%cI"),
+            "subject": _git(SRC, "log", "-1", "--format=%s"),
+            "dirty": bool(_git(SRC, "status", "--porcelain", "--untracked-files=no")),
+        },
+        "parser": parser,
+        "toc": {"source": "不全书.wcp", "title": toc_data.get("title", ""), **toc_stats},
+        "content": {
+            "version": hashlib.sha256(seed.encode()).hexdigest()[:12],
+            "pages": len(records),
+            "built_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        },
+        "checks": checks,
+    }
 
 
 def build_pack(out: Path) -> dict:
@@ -377,6 +462,12 @@ def main() -> int:
     print("C3 锚点链接:", c3["stats"], flush=True)
     c4r = check.c4(records)
     print("C4 schema:", "通过" if c4r["pass"] else f"{c4r['bad_count']} 页", flush=True)
+
+    toc_data = toc_mod.parse_wcp(SRC / "不全书.wcp")
+    (OUT / "toc.json").write_text(json.dumps(toc_data, ensure_ascii=False), encoding="utf-8")
+    c9r = check.c9(toc_data, set(paths))
+    print(f"C9 目录: {c9r['entries']} 条 / 覆盖 {c9r['covered']} 页 "
+          f"({c9r['coverage']:.1%}) / 断链 {c9r['broken']}", flush=True)
     c5r = {"checked": 0, "bad_count": 0, "examples": [], "pass": True}
     if not args.no_c5:
         t1 = time.time()
@@ -416,8 +507,29 @@ def main() -> int:
     preview.write_preview(prev_dir, sample_recs, samples, SRC)
 
     elapsed = time.time() - t0
+    info = build_info(records, toc_data, {
+        "c1": {"pass": c1["pass"]},
+        "c2": {"pass": c2["pass"]},
+        "c3": {"pass": c3["pass"], "kind": "baseline",
+               "broken_file": c3["stats"].get("broken_file", 0),
+               "broken_frag": c3["stats"].get("broken_frag", 0),
+               "lost_ids": c3["stats"].get("lost_ids", 0)},
+        "c4": {"pass": c4r["pass"]},
+        "c5": {"pass": c5r["pass"]},
+        "c6": {"pass": c6["pass"]},
+        "c9": {"pass": c9r["pass"], "entries": c9r["entries"], "coverage": c9r["coverage"]},
+    })
+    (OUT / "build-info.json").write_text(json.dumps(info, ensure_ascii=False, indent=2),
+                                         encoding="utf-8")
+    if pack:
+        (OUT / "pack" / "toc.json").write_text(json.dumps(toc_data, ensure_ascii=False),
+                                               encoding="utf-8")
+        (OUT / "pack" / "build-info.json").write_text(
+            json.dumps(info, ensure_ascii=False, indent=2), encoding="utf-8")
+
     report = build_report(records, {"c1": c1, "c2": c2, "c3": c3, "c4": c4r, "c5": c5r,
-                                    "c6": c6, "c8": c8r, "pack": pack},
+                                    "c6": c6, "c8": c8r, "c9": c9r, "pack": pack,
+                                    "info": info},
                           spells, samples, elapsed, len(paths))
     (OUT / "report.md").write_text(report, encoding="utf-8")
     (OUT / "samples.json").write_text(json.dumps(samples, ensure_ascii=False, indent=2), encoding="utf-8")
