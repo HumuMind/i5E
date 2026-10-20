@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import check  # noqa: E402
 import toc as toc_mod  # noqa: E402
 import model  # noqa: E402
+import pack as pack_mod  # noqa: E402
 import preview  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -33,6 +34,8 @@ SRC = ROOT / "DND5e_chm"
 NON_CONTENT = {"template", "template2", "空白页模板"}
 OUT = ROOT / "build"
 SAMPLES = int(os.environ.get("SAMPLES", "40"))
+# C10 用的探针：单字、双字、四字、拉丁、骰子式，覆盖各种查询形态
+SEARCH_PROBES = ["火球", "巨龙", "魔法飞弹", "施法时间", "AC", "1d6", "龙", "的", "先攻", "黑暗视觉"]
 PACK_EXT = {".htm", ".html", ".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
 
 
@@ -219,6 +222,7 @@ def build_report(records, results, spells, samples, elapsed, paths_total) -> str
     c1, c2, c3, c4r, c5r, c6 = (results[k] for k in ("c1", "c2", "c3", "c4", "c5", "c6"))
     c8r, pack = results.get("c8"), results.get("pack")
     c9r, info = results.get("c9"), results.get("info")
+    c10r = results.get("c10")
     enc = Counter(r["encoding"] for r in records)
     fam = Counter(r["_check"]["family"] for r in records)
     blocks = Counter()
@@ -271,6 +275,9 @@ def build_report(records, results, spells, samples, elapsed, paths_total) -> str
         L.append(f"| C9 目录完整性 | {'通过' if c9r['pass'] else '**' + str(c9r['broken']) + ' 条断链**'} | "
                  f"{c9r['entries']} 条，覆盖 {c9r['covered']}/{c9r['pages']} 页 "
                  f"({c9r['coverage']:.1%})；未覆盖 {c9r['uncovered']} 页（{un}） |")
+    if c10r:
+        L.append(f"| C10 检索索引 | {'通过' if c10r['pass'] else '**不一致**'} | "
+                 f"{c10r['queries']} 条探针查询，召回与内容库逐页比对完全一致 |")
     if c8r:
         L.append(f"| C8 原文还原 | {'通过' if c8r['pass'] else '**失败**'} | "
                  f"{c8r['checked']} 页 sha256 一致，且用原文重解析得到同一份 block |")
@@ -327,6 +334,34 @@ def build_report(records, results, spells, samples, elapsed, paths_total) -> str
         L.append(f"| {i} | `{s['path']}` | {s.get('chars', 0):,} / {s['blocks']} | {', '.join(s['why'])} |")
     L.append("")
     return "\n".join(L)
+
+
+def build_toc(records) -> dict:
+    """主目录 + 各子书目录合并；仍无入口的页面挂到顶层"未收录于目录"。"""
+    main = toc_mod.parse_wcp(SRC / "不全书.wcp")
+    covered = {n["u"].split("#")[0] for n in toc_mod.walk(main["nodes"]) if n.get("u")}
+
+    others = []
+    for f in sorted(SRC.glob("*.wcp")):
+        if f.name == "不全书.wcp":
+            continue
+        try:
+            others.append(toc_mod.parse_wcp(f))
+        except Exception:  # noqa: BLE001
+            continue
+    toc_mod.merge(main, others, covered)
+    pages_all = {r["path"] for r in records}
+    main["nodes"], dead = toc_mod.drop_dead_links(main["nodes"], pages_all)
+    main["nodes"] = [n for n in main["nodes"] if n.get("u") or n["c"]]
+
+    after = {n["u"].split("#")[0] for n in toc_mod.walk(main["nodes"]) if n.get("u")}
+    rest = {r["path"] for r in records} - after
+    if rest:
+        titles = {r["path"]: (r.get("title") or "") for r in records}
+        main["nodes"].append(toc_mod.leftovers(rest, titles))
+    main["merge"] = {"sources": 1 + len(others), "from_extra": len(after - covered),
+                     "dead_links": dead, "leftover": len(rest)}
+    return main
 
 
 def _git(path: Path, *args: str) -> str:
@@ -463,7 +498,7 @@ def main() -> int:
     c4r = check.c4(records)
     print("C4 schema:", "通过" if c4r["pass"] else f"{c4r['bad_count']} 页", flush=True)
 
-    toc_data = toc_mod.parse_wcp(SRC / "不全书.wcp")
+    toc_data = build_toc(records)
     (OUT / "toc.json").write_text(json.dumps(toc_data, ensure_ascii=False), encoding="utf-8")
     c9r = check.c9(toc_data, set(paths))
     print(f"C9 目录: {c9r['entries']} 条 / 覆盖 {c9r['covered']} 页 "
@@ -480,10 +515,19 @@ def main() -> int:
     baseline_path.write_text(json.dumps({r["path"]: r["hash"] for r in records}, indent=0))
 
     c8r = None
+    c10r = None
     pack = None
     if args.pack:
         t1 = time.time()
+        db = pack_mod.build(records, toc_data, {}, OUT / "pack" / "content.db")
+        con = pack_mod.open_db(OUT / "pack" / "content.db")
+        c10r = pack_mod.verify(con, SEARCH_PROBES, records)
+        con.close()
+        print(f"C10 检索索引: {'通过' if c10r['pass'] else c10r} "
+              f"({len(SEARCH_PROBES)} 条查询 · 库 {db['bytes'] / 1048576:.1f} MB · "
+              f"{time.time() - t1:.1f}s)", flush=True)
         pack = build_pack(OUT)
+        pack["db"] = db
         c8r = check.c8(records, pack["archive"], pack["manifest"])
         print(f"C8 原文还原: {'通过' if c8r['pass'] else c8r} "
               f"({time.time() - t1:.1f}s, 归档 {pack['bytes'] / 1048576:.1f} MB)", flush=True)
@@ -518,6 +562,7 @@ def main() -> int:
         "c5": {"pass": c5r["pass"]},
         "c6": {"pass": c6["pass"]},
         "c9": {"pass": c9r["pass"], "entries": c9r["entries"], "coverage": c9r["coverage"]},
+        "c10": {"pass": bool(c10r and c10r["pass"]), "probes": len(SEARCH_PROBES)},
     })
     (OUT / "build-info.json").write_text(json.dumps(info, ensure_ascii=False, indent=2),
                                          encoding="utf-8")
@@ -528,14 +573,14 @@ def main() -> int:
             json.dumps(info, ensure_ascii=False, indent=2), encoding="utf-8")
 
     report = build_report(records, {"c1": c1, "c2": c2, "c3": c3, "c4": c4r, "c5": c5r,
-                                    "c6": c6, "c8": c8r, "c9": c9r, "pack": pack,
-                                    "info": info},
+                                    "c6": c6, "c8": c8r, "c9": c9r, "c10": c10r,
+                                    "pack": pack, "info": info},
                           spells, samples, elapsed, len(paths))
     (OUT / "report.md").write_text(report, encoding="utf-8")
     (OUT / "samples.json").write_text(json.dumps(samples, ensure_ascii=False, indent=2), encoding="utf-8")
     (OUT / "report.json").write_text(json.dumps({
         "pages": len(records), "elapsed": elapsed, "c1": c1, "c2": c2, "c3": c3,
-        "c4": c4r, "c5": c5r, "c6": c6, "c8": c8r, "spells": spells,
+        "c4": c4r, "c5": c5r, "c6": c6, "c8": c8r, "c10": c10r, "spells": spells,
     }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print(f"\n完成 {elapsed:.1f}s → {OUT}", flush=True)

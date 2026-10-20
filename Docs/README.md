@@ -29,7 +29,7 @@
 |---|---|---|
 | D1 | 内容模型 | [0001](decisions/0001-content-model.md) · 已定（文档流 + 实体标注，首批只做法术） |
 | D2 | 解析发生在哪一层 | [0002](decisions/0002-pipeline.md) · 已定（构建期预生成，内容包留接口） |
-| D3 | 存储与检索 | 待排 |
+| D3 | 存储与检索 | [0007](decisions/0007-storage.md) · 已定（单库 SQLite，单字+双字索引） |
 | V1 | 转换验证 | [0003](decisions/0003-translation-verification.md) · 已定（C1–C6 已实现，全量通过） |
 | D1b | 原文存档 | [0004](decisions/0004-source-archive.md) · 已定（两层内容包，C8 闭环） |
 | D1c | 样式字段 | [0005](decisions/0005-style-fields.md) · 已定（颜色/字号/字体族/对齐/缩进） |

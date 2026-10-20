@@ -100,3 +100,101 @@ def stats(toc: dict) -> dict:
         "folders": len(nodes) - len(internal),
         "depth": depth,
     }
+
+
+def prune(nodes: list[dict], covered: set[str]) -> list[dict]:
+    """只保留"子树里还有未覆盖页面"的节点；已覆盖的链接降级为纯文件夹。"""
+    out = []
+    for n in nodes:
+        kids = prune(n["c"], covered)
+        url = n.get("u")
+        keep_url = bool(url) and url.split("#")[0] not in covered
+        if keep_url or kids:
+            out.append({"t": n["t"], "u": url if keep_url else None, "c": kids})
+    return out
+
+
+def _segments(node: dict) -> str | None:
+    """子树里出现最多的首段目录名。
+
+    不能用"任意一个"：某个顶层节点下面可能挂着别的书的链接（比如速查节点里
+    链到玩家手册），按"任意"认领会把不相干的书归错。
+    """
+    import collections
+
+    c = collections.Counter()
+    for n in walk([node]):
+        u = n.get("u")
+        if u:
+            c[u.split("/")[0]] += 1
+    return c.most_common(1)[0][0] if c else None
+
+
+def merge(main: dict, others: list[dict], taken: set[str]) -> dict:
+    """把子书目录接到主目录对应的书节点下面。
+
+    子书目录（艾伯伦.wcp 之类）本身不带书名，只能按路径首段认领；
+    认领不到的书节点挂到顶层"补遗"。
+    """
+    by_book: dict[str, dict] = {}
+    for root in main["nodes"]:
+        seg = _segments(root)
+        if seg:
+            by_book.setdefault(seg, root)
+
+    groups: list[tuple[dict, list[dict]]] = []
+    orphans: list[dict] = []
+    for extra in others:
+        for root in prune(extra["nodes"], taken):
+            seg = _segments(root)
+            target = by_book.get(seg) if seg else None
+            if target is None:
+                orphans.append(root)
+                continue
+            for owner, acc in groups:
+                if owner is target:
+                    acc.append(root)
+                    break
+            else:
+                groups.append((target, [root]))
+
+    for owner, roots in groups:
+        owner["c"].append({"t": "补遗", "u": None, "c": roots})
+    if orphans:
+        main["nodes"].append({"t": "补遗（未归类）", "u": None, "c": orphans})
+    return main
+
+
+def leftovers(pages: set[str], titles: dict[str, str]) -> dict:
+    """合并后仍无处安放的页面，按书分组挂到顶层，保证没有页面失去入口。"""
+    import collections
+
+    by_book = collections.defaultdict(list)
+    for p in sorted(pages):
+        by_book[p.split("/")[0]].append(p)
+    return {
+        "t": "未收录于目录",
+        "u": None,
+        "c": [
+            {"t": book, "u": None,
+             "c": [{"t": titles.get(p) or p.split("/")[-1], "u": p, "c": []} for p in ps]}
+            for book, ps in by_book.items()
+        ],
+    }
+
+
+def drop_dead_links(nodes: list[dict], pages: set[str]) -> tuple[list[dict], int]:
+    """子书目录里有指向已删除页面的条目：去掉链接保留标题，没子节点的整条丢弃。"""
+    out: list[dict] = []
+    dead = 0
+    for n in nodes:
+        kids, sub = drop_dead_links(n["c"], pages)
+        dead += sub
+        url = n.get("u")
+        if url and url.split("#")[0] not in pages:
+            url = None
+            dead += 1
+            if not kids:
+                continue
+        out.append({"t": n["t"], "u": url, "c": kids})
+    return out, dead

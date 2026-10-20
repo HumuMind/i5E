@@ -31,6 +31,7 @@ python3 Tools/content/run.py build --limit 400 --no-c5
 | `pack/source.tar.gz` | 原文归档，逐字节（--pack）|
 | `pack/manifest.json` | 每个文件的 sha256（--pack）|
 | `pack/content.jsonl.gz` | 阅读层压缩产物（--pack）|
+| `pack/content.db` | **App 直读**：pages + FTS5 索引 + 目录（--pack）|
 | `samples.json` | 黄金样本及其入选理由 |
 | `preview/index.html` | **先看这个**：左侧渲染结果，右侧 block 结构 |
 
@@ -42,7 +43,8 @@ python3 Tools/content/run.py build --limit 400 --no-c5
 |---|---|
 | `model.py` | 解码、HTML → block、法术实体抽取 |
 | `render.py` | block → HTML，以及 C5 用的规范化视图 |
-| `check.py` | C1–C6 |
+| `pack.py` | 打单文件 SQLite：pages / FTS5 / meta，含查询与校验 |
+| `check.py` | C1–C10 |
 | `preview.py` | 黄金样本预览页 |
 | `toc.py` | 解析 `.wcp` 里的目录树，统计覆盖率 |
 | `run.py` | 命令行、语料遍历、样本挑选、报告、构建清单 |
