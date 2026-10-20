@@ -20,7 +20,7 @@
 | 路径 | 放什么 |
 |---|---|
 | `decisions/` | 架构与产品决策，编号递增 |
-| `AppDesign/` | 产品与界面设计 |
+| `AppDesign/` | 产品与界面设计；[iOS 待讨论清单](AppDesign/ios-checklist.md) |
 | `open-questions.md` | 未决问题，一行一条，写清"在等什么才解" |
 
 ## 排期
