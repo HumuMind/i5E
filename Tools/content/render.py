@@ -61,6 +61,10 @@ def render_runs(runs: list[dict], defaults: dict | None = None, faithful: bool =
     return "".join(out)
 
 
+def _clsattr(b: dict) -> str:
+    return f' class="{html.escape(" ".join(b["cls"]))}"' if b.get("cls") else ""
+
+
 def render_blocks(blocks: list[dict], raw_href: bool = True,
                   defaults: dict | None = None, faithful: bool = False) -> str:
     out: list[str] = []
@@ -72,6 +76,7 @@ def render_blocks(blocks: list[dict], raw_href: bool = True,
         if faithful and b.get("ind"):
             blk += f"text-indent:{b['ind']}em;"
         battr = f' style="{blk}"' if blk else ""
+        battr = _clsattr(b) + battr
         if t == "h":
             lv = b["level"]
             idattr = f' id="{html.escape(b["id"])}"' if b.get("id") else ""
@@ -90,7 +95,11 @@ def render_blocks(blocks: list[dict], raw_href: bool = True,
         elif t == "table":
             out.append(render_table(b, defaults, faithful))
         elif t == "quote":
-            out.append(f"<blockquote>{render_blocks(b['blocks'], defaults=defaults, faithful=faithful)}</blockquote>")
+            out.append(f"<blockquote{_clsattr(b)}>"
+                       f"{render_blocks(b['blocks'], defaults=defaults, faithful=faithful)}</blockquote>")
+        elif t == "div":
+            out.append(f"<div{_clsattr(b)}>"
+                       f"{render_blocks(b['blocks'], defaults=defaults, faithful=faithful)}</div>")
         elif t == "pre":
             out.append(f"<pre>{esc(b['text'])}</pre>")
         elif t == "hr":
@@ -101,20 +110,30 @@ def render_blocks(blocks: list[dict], raw_href: bool = True,
 
 
 def render_table(b: dict, defaults=None, faithful: bool = False) -> str:
-    parts = ["<table>"]
+    parts = [f"<table{_clsattr(b)}>"]
     if b.get("caption"):
         parts.append(f"<caption>{esc(b['caption'])}</caption>")
     for row in b["rows"]:
-        parts.append("<tr>")
+        rbg = f' style="background:{row["bg"]}"' if b.get("cls") is not None and row.get("bg") else ""
+        parts.append(f"<tr{rbg}>")
         for c in row["cells"]:
             tag = "th" if c.get("header") else "td"
-            attrs = ""
+            attrs = f' class="{html.escape(" ".join(c["cls"]))}"' if c.get("cls") else ""
+            if c.get("bg"):
+                attrs += f' style="background:{c["bg"]}"'
             if c.get("colspan", 1) > 1:
                 attrs += f' colspan="{c["colspan"]}"'
             if c.get("rowspan", 1) > 1:
                 attrs += f' rowspan="{c["rowspan"]}"'
-            parts.append(f"<{tag}{attrs}>"
-                         f"{render_blocks(c['blocks'], defaults=defaults, faithful=faithful)}</{tag}>")
+            inner = c["blocks"]
+            # 单元格里只有一个普通段落时不要外套 <p>：源页也没有，
+            # 多一层会带进默认段距，把表格撑得比原页高一大截
+            if len(inner) == 1 and inner[0]["type"] == "p" and not any(
+                    k in inner[0] for k in ("al", "ind", "cls", "anchors")):
+                body = render_runs(inner[0]["runs"], defaults, faithful)
+            else:
+                body = render_blocks(inner, defaults=defaults, faithful=faithful)
+            parts.append(f"<{tag}{attrs}>{body}</{tag}>")
         parts.append("</tr>")
     parts.append("</table>")
     return "".join(parts)
@@ -154,8 +173,12 @@ def canon(blocks: list[dict]) -> list:
                 }
                 for row in b["rows"]
             ]
-        elif t == "quote":
+        elif t in ("quote", "div"):
             item["b"] = canon(b["blocks"])
+            if b.get("cls"):
+                item["cls"] = b["cls"]
+        elif t in ("p", "h", "table", "list") and b.get("cls"):
+            item["cls"] = b["cls"]
         elif t == "pre":
             item["x"] = re.sub(r"\s+", " ", b["text"]).strip()
         elif t in ("dt", "dd"):

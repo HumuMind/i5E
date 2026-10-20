@@ -213,6 +213,23 @@ def _style_of(el) -> dict:
     return flags
 
 
+# 只过滤确定无意义的 Word/BBCode 残留。注意 c1–c4 不是垃圾：
+# stat-block.css 里 td.c1…td.c4 带底色。
+JUNK_CLASSES = {"msonormal", "grame", "spelle", "mso", "bbcsize", "bbccolor"}
+
+
+def _cls(el) -> list[str]:
+    raw = (el.get("class") or "").split()
+    keep = []
+    for c in raw:
+        low = c.lower()
+        if low in JUNK_CLASSES or c.isdigit() or low.startswith("mso") or low in ("wordsection1", "section0"):
+            continue
+        if c not in keep:
+            keep.append(c)
+    return keep[:4]
+
+
 def _align_indent(el) -> dict:
     out: dict = {}
     al = (el.get("align") or "").strip().lower()
@@ -416,20 +433,31 @@ class Builder:
             if el.get("id"):
                 block["id"] = el.get("id")
             block.update(_align_indent(el))
+            if _cls(el):
+                block["cls"] = _cls(el)
             out.append(block)
 
         elif tag == "p":
             runs = self.inline(el)
+            # 无可见内容的段落（表格占位单元格常见）不保留，否则渲染回去就消失了
+            if (not self._ids and not any(r.get("img") for r in runs)
+                    and not norm_text(_runs_text(runs))):
+                return
             block = {"type": "p", "runs": runs}
             if self._ids:
                 block["anchors"] = sorted(set(self._ids))
             block.update(_align_indent(el))
+            if _cls(el):
+                block["cls"] = _cls(el)
             out.append(block)
 
         elif tag in ("ul", "ol", "menu", "dir"):
             items: list[dict] = []
             self._collect_list(el, items)
-            out.append({"type": "list", "ordered": tag == "ol", "items": items})
+            lb = {"type": "list", "ordered": tag == "ol", "items": items}
+            if _cls(el):
+                lb["cls"] = _cls(el)
+            out.append(lb)
 
         elif tag == "table":
             out.append(self._table(el))
@@ -437,7 +465,10 @@ class Builder:
         elif tag in ("blockquote",):
             inner: list[dict] = []
             self._container(el, inner)
-            out.append({"type": "quote", "blocks": inner})
+            qb = {"type": "quote", "blocks": inner}
+            if _cls(el):
+                qb["cls"] = _cls(el)
+            out.append(qb)
 
         elif tag == "pre":
             out.append({"type": "pre", "text": "".join(el.itertext())})
@@ -454,6 +485,14 @@ class Builder:
 
         elif tag == "img":
             out.append({"type": "img", "src": el.get("src") or "", "alt": el.get("alt") or ""})
+
+        elif tag == "div" and _cls(el):
+            inner: list[dict] = []
+            self._container(el, inner)
+            block = {"type": "div", "cls": _cls(el), "blocks": inner}
+            if self._ids:
+                block["anchors"] = sorted(set(self._ids))
+            out.append(block)
 
         elif tag in ("thead", "tbody", "tfoot", "tr", "td", "th", "caption"):
             # 游离的表格零件（Word 常产出），当容器处理
@@ -492,6 +531,23 @@ class Builder:
             a = a.getparent()
         return None
 
+    @staticmethod
+    def _bg(el):
+        c = _color(el.get("bgcolor") or "")
+        if c:
+            return c
+        st = el.get("style") or ""
+        for decl in st.split(";"):
+            if ":" not in decl:
+                continue
+            k, _, v = decl.partition(":")
+            k = k.strip().lower()
+            if k in ("background-color", "background"):
+                c = _color(v.split()[0] if v.split() else "")
+                if c:
+                    return c
+        return None
+
     def _table(self, el) -> dict:
         # 按文档顺序取"最近表格祖先就是本表"的行：既排除嵌套表格的行，
         # 也不会漏掉被畸形标签挤出 tbody 的孤儿行。
@@ -500,23 +556,37 @@ class Builder:
             if self._near_table(tr) is not el:
                 continue
             cells = []
+            row_bg = self._bg(tr)
             for td in tr.iterchildren():
                 if not isinstance(td.tag, str) or td.tag.lower() not in ("td", "th"):
                     continue
                 inner: list[dict] = []
                 self._container(td, inner)
-                cells.append({
+                cell = {
                     "blocks": inner,
                     "colspan": int(td.get("colspan") or 1),
                     "rowspan": int(td.get("rowspan") or 1),
                     "header": td.tag.lower() == "th",
-                })
-            rows.append({"cells": cells})
+                }
+                cbg = self._bg(td)
+                if cbg:
+                    cell["bg"] = cbg
+                ccls = _cls(td)
+                if ccls:
+                    cell["cls"] = ccls
+                cells.append(cell)
+            row = {"cells": cells}
+            if row_bg:
+                row["bg"] = row_bg
+            rows.append(row)
         caption = ""
         cap = el.find("caption")
         if cap is not None:
             caption = "".join(cap.itertext()).strip()
-        return {"type": "table", "rows": rows, "caption": caption}
+        tb = {"type": "table", "rows": rows, "caption": caption}
+        if _cls(el):
+            tb["cls"] = _cls(el)
+        return tb
 
 
 class _TextHolder:
@@ -561,7 +631,7 @@ def blocks_text(blocks: list[dict]) -> str:
                 for row in b["rows"]:
                     for c in row["cells"]:
                         walk(c["blocks"])
-            elif t == "quote":
+            elif t in ("quote", "div"):
                 walk(b["blocks"])
             elif t == "pre":
                 parts.append(b["text"])
@@ -594,7 +664,7 @@ def _walk_runs(blocks, fn) -> None:
             for row in b["rows"]:
                 for c in row["cells"]:
                     _walk_runs(c["blocks"], fn)
-        elif t == "quote":
+        elif t in ("quote", "div"):
             _walk_runs(b["blocks"], fn)
 
 
@@ -709,7 +779,7 @@ def _collect_ids(blocks: list[dict]) -> set[str]:
                 for row in b["rows"]:
                     for c in row["cells"]:
                         walk(c["blocks"])
-            elif b["type"] == "quote":
+            elif b["type"] in ("quote", "div"):
                 walk(b["blocks"])
 
     walk(blocks)

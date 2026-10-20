@@ -171,7 +171,7 @@ def c3(records) -> dict:
 
 # ---------------- C4 schema ----------------
 
-BLOCK_TYPES = {"h", "p", "list", "table", "quote", "pre", "hr", "dt", "dd"}
+BLOCK_TYPES = {"h", "p", "list", "table", "quote", "pre", "hr", "dt", "dd", "div"}
 RUN_KEYS = {"t", "img", "alt", "b", "i", "u", "s", "sup", "sub", "code", "href",
             "c", "sz", "fa"}
 
@@ -199,7 +199,7 @@ def _schema(blocks) -> list[str]:
                     if c.get("colspan", 1) < 1 or c.get("rowspan", 1) < 1:
                         errs.append("bad span")
                     errs += _schema(c.get("blocks", []))
-        elif t == "quote":
+        elif t in ("quote", "div"):
             errs += _schema(b.get("blocks", []))
         elif t == "pre":
             if not isinstance(b.get("text"), str):
