@@ -172,7 +172,8 @@ def c3(records) -> dict:
 # ---------------- C4 schema ----------------
 
 BLOCK_TYPES = {"h", "p", "list", "table", "quote", "pre", "hr", "dt", "dd"}
-RUN_KEYS = {"t", "img", "alt", "b", "i", "u", "s", "sup", "sub", "code", "href"}
+RUN_KEYS = {"t", "img", "alt", "b", "i", "u", "s", "sup", "sub", "code", "href",
+            "c", "sz", "fa"}
 
 
 def _schema(blocks) -> list[str]:
@@ -232,8 +233,8 @@ def c4(records) -> dict:
 
 # ---------------- C5 往返保真 ----------------
 
-def _reparse(blocks, path):
-    html = "<html><body>" + render_blocks(blocks) + "</body></html>"
+def _reparse(blocks, path, defaults=None):
+    html = "<html><body>" + render_blocks(blocks, defaults=defaults, faithful=True) + "</body></html>"
     return parse_page(path, html.encode("utf-8"))
 
 
@@ -245,7 +246,7 @@ def c5(records, limit=None) -> dict:
             break
         checked += 1
         try:
-            again = _reparse(r["blocks"], r["path"])
+            again = _reparse(r["blocks"], r["path"], r.get("style"))
         except Exception as e:  # noqa: BLE001
             bad.append({"path": r["path"], "err": f"reparse raised: {e}"})
             continue

@@ -77,28 +77,164 @@ def _merge(runs: list[dict]) -> list[dict]:
     for r in runs:
         if r.get("t") == "":
             continue
-        # 只有样式集合完全一致才能合并，否则正文会被并进粗体段
-        if out and "t" in r and "t" in out[-1] and set(r) == set(out[-1]):
-            out[-1]["t"] += r["t"]
-            continue
+        # 样式必须逐项相等才能合并；只比键集合会把不同颜色的相邻段并成一段
+        if out and "t" in r and "t" in out[-1]:
+            if {k: v for k, v in out[-1].items() if k != "t"} == \
+               {k: v for k, v in r.items() if k != "t"}:
+                out[-1]["t"] += r["t"]
+                continue
         out.append(r)
     return out
 
 
-def _style_flags(el) -> dict:
-    """从 Word 导出的内联样式里翻出语义样式。颜色不保留，只统计。"""
-    st = (el.get("style") or "").lower()
-    flags = {}
-    if "font-weight: bold" in st or "font-weight:bold" in st or "font-weight:700" in st:
-        flags["b"] = 1
-    if "font-style: italic" in st or "font-style:italic" in st:
-        flags["i"] = 1
-    if "text-decoration: underline" in st:
-        flags["u"] = 1
-    m = re.search(r"color:\s*(#[0-9a-f]{3,6}|rgb\([^)]*\))", st)
-    if m and m.group(1) not in ("#000", "#000000", "rgb(0,0,0)", "rgb(0, 0, 0)"):
-        flags["_color"] = 1
+NAMED_COLORS = {
+    "black": "#000000", "white": "#ffffff", "red": "#ff0000", "green": "#008000",
+    "blue": "#0000ff", "yellow": "#ffff00", "gray": "#808080", "grey": "#808080",
+    "silver": "#c0c0c0", "maroon": "#800000", "navy": "#000080", "purple": "#800080",
+    "teal": "#008080", "olive": "#808000", "lime": "#00ff00", "aqua": "#00ffff",
+    "fuchsia": "#ff00ff", "windowtext": "#000000",
+}
+# <font size=1..7> 的近似磅值
+FONT_SIZES = {1: 7.5, 2: 10.0, 3: 12.0, 4: 13.5, 5: 18.0, 6: 24.0, 7: 36.0}
+# 只保留"衬线 / 无衬线 / 等宽 / 楷体"这几类，够还原观感，不必记住几十种字体名
+FAMILY_MAP = {
+    "宋体": "song", "simsun": "song", "新宋体": "song", "仿宋": "fang", "fangsong": "fang",
+    "楷体": "kai", "kaiti": "kai", "楷体_gb2312": "kai",
+    "黑体": "hei", "simhei": "hei", "微软雅黑": "sans", "microsoft yahei": "sans",
+    "arial": "sans", "helvetica": "sans", "tahoma": "sans", "verdana": "sans",
+    "calibri": "sans", "segoe ui": "sans",
+    "times new roman": "times", "georgia": "times", "cambria": "times", "garamond": "times",
+    "consolas": "mono", "courier new": "mono", "courier": "mono",
+}
+
+
+def _color(v: str):
+    v = v.strip().lower()
+    if not v or v in ("transparent", "inherit", "initial", "none"):
+        return None
+    if v.startswith("#"):
+        h = v[1:]
+        if len(h) == 3:
+            h = "".join(c * 2 for c in h)
+        return "#" + h if re.fullmatch(r"[0-9a-f]{6}", h) else None
+    m = re.match(r"rgba?\(([^)]*)\)", v)
+    if m:
+        parts = [x for x in re.split(r"[,\s]+", m.group(1)) if x]
+        try:
+            r, g, b = (int(float(x)) for x in parts[:3])
+        except (ValueError, TypeError):
+            return None
+        if all(0 <= x <= 255 for x in (r, g, b)):
+            return f"#{r:02x}{g:02x}{b:02x}"
+        return None
+    return NAMED_COLORS.get(v)
+
+
+def _size(v: str):
+    m = re.match(r"([\d.]+)\s*(pt|px|em|%|in|cm)?", v.strip().lower())
+    if not m:
+        return None
+    try:
+        n = float(m.group(1))
+    except ValueError:
+        return None
+    unit = m.group(2) or "pt"
+    if unit == "pt":
+        return round(n, 1)
+    if unit == "px":
+        return round(n * 0.75, 1)
+    if unit == "em":
+        return round(n * 12, 1)
+    if unit == "%":
+        return round(n / 100 * 12, 1)
+    return None
+
+
+def _family(v: str):
+    first = v.split(",")[0].strip().strip("'\"").lower()
+    return FAMILY_MAP.get(first)
+
+
+def _length(v: str):
+    """把 text-indent / margin-left 归一成 em。"""
+    m = re.match(r"(-?[\d.]+)\s*(pt|px|em)?", v.strip().lower())
+    if not m:
+        return None
+    try:
+        n = float(m.group(1))
+    except ValueError:
+        return None
+    unit = m.group(2) or "pt"
+    return round(n / 12, 2) if unit in ("pt", "px") else round(n, 2)
+
+
+def _style_of(el) -> dict:
+    """抽取可还原的样式：颜色、字号、字体族、粗斜下划。数值型字段统一归一。"""
+    flags: dict = {}
+    st = el.get("style") or ""
+    if st:
+        for decl in st.split(";"):
+            if ":" not in decl:
+                continue
+            k, _, v = decl.partition(":")
+            k, v = k.strip().lower(), v.strip()
+            if k == "color":
+                c = _color(v)
+                if c:
+                    flags["c"] = c
+            elif k == "font-size":
+                sz = _size(v)
+                if sz:
+                    flags["sz"] = sz
+            elif k == "font-family":
+                fa = _family(v)
+                if fa:
+                    flags["fa"] = fa
+            elif k == "font-weight":
+                if v.lower() in ("bold", "700", "800", "900"):
+                    flags["b"] = 1
+            elif k == "font-style" and v.lower() in ("italic", "oblique"):
+                flags["i"] = 1
+            elif k == "text-decoration" and "underline" in v.lower():
+                flags["u"] = 1
+    tag = el.tag.lower()
+    if tag == "font":
+        _c = _color(el.get("color") or "")
+        if _c:
+            flags["c"] = _c
+        _f = _family(el.get("face") or "")
+        if _f:
+            flags["fa"] = _f
+        sz = el.get("size")
+        if sz and sz.strip().isdigit():
+            n = int(sz.strip())
+            if n in FONT_SIZES:
+                flags["sz"] = FONT_SIZES[n]
     return flags
+
+
+def _align_indent(el) -> dict:
+    out: dict = {}
+    al = (el.get("align") or "").strip().lower()
+    ind = None
+    st = el.get("style") or ""
+    if st:
+        for decl in st.split(";"):
+            if ":" not in decl:
+                continue
+            k, _, v = decl.partition(":")
+            k, v = k.strip().lower(), v.strip()
+            if k == "text-align":
+                al = v.lower()
+            elif k in ("text-indent", "margin-left"):
+                n = _length(v)
+                if n:
+                    ind = n
+    if al in ("center", "right", "justify", "left") and al != "left":
+        out["al"] = al[0]
+    if ind:
+        out["ind"] = ind
+    return out
 
 
 class Builder:
@@ -184,11 +320,12 @@ class Builder:
                     out.append({"img": src, "alt": el.get("alt") or ""})
                 return
             elif tag not in ("body", "html"):
-                flags = _style_flags(el) if (el.get("style")) else {}
-                if flags:
-                    if flags.pop("_color", 0):
-                        self.color_runs += 1
-                    nxt = {**ctx, **flags}
+                if el.get("style") or tag == "font":
+                    flags = _style_of(el)
+                    if flags:
+                        if flags.get("c") and flags["c"] != "#000000":
+                            self.color_runs += 1
+                        nxt = {**ctx, **flags}
             if el.get("id"):
                 self.ids.add(el.get("id"))
                 self._ids.append(el.get("id"))
@@ -278,6 +415,7 @@ class Builder:
             block = {"type": "h", "level": int(tag[1]), "runs": runs}
             if el.get("id"):
                 block["id"] = el.get("id")
+            block.update(_align_indent(el))
             out.append(block)
 
         elif tag == "p":
@@ -285,6 +423,7 @@ class Builder:
             block = {"type": "p", "runs": runs}
             if self._ids:
                 block["anchors"] = sorted(set(self._ids))
+            block.update(_align_indent(el))
             out.append(block)
 
         elif tag in ("ul", "ol", "menu", "dir"):
@@ -442,6 +581,58 @@ def _empty(path: str, enc: str, err: str) -> dict:
     }
 
 
+def _walk_runs(blocks, fn) -> None:
+    for b in blocks:
+        t = b["type"]
+        if t in ("h", "p", "dt", "dd"):
+            fn(b["runs"])
+        elif t == "list":
+            for it in b["items"]:
+                fn(it["runs"])
+                _walk_runs(it["blocks"], fn)
+        elif t == "table":
+            for row in b["rows"]:
+                for c in row["cells"]:
+                    _walk_runs(c["blocks"], fn)
+        elif t == "quote":
+            _walk_runs(b["blocks"], fn)
+
+
+def _strip_defaults(blocks) -> dict:
+    """页面里占多数的样式提到页级存一份，run 上只留与默认不同的部分。"""
+    counts: dict[str, Counter] = {k: Counter() for k in ("c", "sz", "fa")}
+    total = 0
+
+    def count(runs):
+        nonlocal total
+        for r in runs:
+            if "t" not in r:
+                continue
+            total += 1
+            for k in counts:
+                if k in r:
+                    counts[k][r[k]] += 1
+
+    _walk_runs(blocks, count)
+    defaults: dict = {}
+    for k, ctr in counts.items():
+        if not ctr:
+            continue
+        val, n = ctr.most_common(1)[0]
+        if total and n / total >= 0.6:
+            defaults[k] = val
+
+    def strip(runs):
+        for r in runs:
+            for k, val in defaults.items():
+                if r.get(k) == val:
+                    r.pop(k, None)
+
+    if defaults:
+        _walk_runs(blocks, strip)
+    return defaults
+
+
 def parse_page(path: str, data: bytes) -> dict:
     text, enc = decode(data)
     if not text.strip():
@@ -457,18 +648,26 @@ def parse_page(path: str, data: bytes) -> dict:
     blocks = b.blocks(body)
     src = b.source_text(body)
     links = [el.get("href") for el in body.iter("a") if el.get("href")]
+    # 页面依赖的外部样式表：还原观感需要它，丢掉就没法复现
+    css = [el.get("href") for el in doc.iter("link")
+           if "stylesheet" in (el.get("rel") or "").lower() and el.get("href")]
     dropped = {
         el.get("id") for el in body.iter()
         if isinstance(el.tag, str) and el.tag.lower() in IGNORED_TAGS and el.get("id")
     }
     imgs = [el.get("src") for el in body.iter("img") if el.get("src")]
+    style = _strip_defaults(blocks)
+    # 哈希要覆盖整页，包括页级样式与样式表依赖，否则改了这些 C6 看不见
     digest = hashlib.sha256(
-        json.dumps(blocks, ensure_ascii=False, sort_keys=True).encode()
+        json.dumps({"blocks": blocks, "style": style, "css": css},
+                   ensure_ascii=False, sort_keys=True).encode()
     ).hexdigest()[:16]
     return {
         "path": path,
         "encoding": enc,
         "title": _title(doc),
+        "style": style,
+        "css": css,
         "blocks": blocks,
         "hash": digest,
         "_check": {

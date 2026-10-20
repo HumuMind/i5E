@@ -9,12 +9,35 @@ from model import SEP
 
 INLINE_ORDER = ("code", "b", "i", "u", "s", "sup", "sub")
 
+FAMILY_CSS = {
+    "song": "'Songti SC','SimSun',serif",
+    "hei": "'Heiti SC','SimHei',sans-serif",
+    "kai": "'Kaiti SC','KaiTi',serif",
+    "fang": "'FangSong','STFangsong',serif",
+    "sans": "'Helvetica Neue',Arial,sans-serif",
+    "times": "'Times New Roman',serif",
+    "mono": "'Menlo','Courier New',monospace",
+}
+
+
+def _decl(style: dict | None) -> str:
+    if not style:
+        return ""
+    p = []
+    if style.get("c"):
+        p.append(f"color:{style['c']}")
+    if style.get("sz"):
+        p.append(f"font-size:{style['sz']}pt")
+    if style.get("fa"):
+        p.append(f"font-family:{FAMILY_CSS.get(style['fa'], 'inherit')}")
+    return ";".join(p)
+
 
 def esc(s: str) -> str:
     return html.escape(s, quote=False)
 
 
-def render_runs(runs: list[dict]) -> str:
+def render_runs(runs: list[dict], defaults: dict | None = None, faithful: bool = False) -> str:
     out = []
     for r in runs:
         if r.get("img"):
@@ -24,6 +47,11 @@ def render_runs(runs: list[dict]) -> str:
             )
             continue
         t = esc(r.get("t", "")).replace("\n", " ").replace(SEP, "<br>")
+        if faithful:
+            st = {k: r.get(k, (defaults or {}).get(k)) for k in ("c", "sz", "fa")}
+            decl = _decl(st)
+            if decl:
+                t = f'<span style="{decl}">{t}</span>'
         for flag in INLINE_ORDER:
             if r.get(flag):
                 t = f"<{flag}>{t}</{flag}>"
@@ -33,38 +61,46 @@ def render_runs(runs: list[dict]) -> str:
     return "".join(out)
 
 
-def render_blocks(blocks: list[dict], raw_href: bool = True) -> str:
+def render_blocks(blocks: list[dict], raw_href: bool = True,
+                  defaults: dict | None = None, faithful: bool = False) -> str:
     out: list[str] = []
     for b in blocks:
         t = b["type"]
+        blk = ""
+        if faithful and b.get("al"):
+            blk += f"text-align:${{'center' if b['al']=='c' else 'right' if b['al']=='r' else 'justify'}};"
+        if faithful and b.get("ind"):
+            blk += f"text-indent:{b['ind']}em;"
+        battr = f' style="{blk}"' if blk else ""
         if t == "h":
             lv = b["level"]
             idattr = f' id="{html.escape(b["id"])}"' if b.get("id") else ""
-            out.append(f"<h{lv}{idattr}>{render_runs(b['runs'])}</h{lv}>")
+            out.append(f"<h{lv}{idattr}{battr}>{render_runs(b['runs'], defaults, faithful)}</h{lv}>")
         elif t == "p":
-            out.append(f"<p>{render_runs(b['runs'])}</p>")
+            out.append(f"<p{battr}>{render_runs(b['runs'], defaults, faithful)}</p>")
         elif t == "list":
             tag = "ol" if b["ordered"] else "ul"
             items = []
             for it in b["items"]:
                 items.append(
-                    f"<li>{render_runs(it['runs'])}{render_blocks(it['blocks'])}</li>"
+                    f"<li>{render_runs(it['runs'], defaults, faithful)}"
+                    f"{render_blocks(it['blocks'], defaults=defaults, faithful=faithful)}</li>"
                 )
             out.append(f"<{tag}>{''.join(items)}</{tag}>")
         elif t == "table":
-            out.append(render_table(b))
+            out.append(render_table(b, defaults, faithful))
         elif t == "quote":
-            out.append(f"<blockquote>{render_blocks(b['blocks'])}</blockquote>")
+            out.append(f"<blockquote>{render_blocks(b['blocks'], defaults=defaults, faithful=faithful)}</blockquote>")
         elif t == "pre":
             out.append(f"<pre>{esc(b['text'])}</pre>")
         elif t == "hr":
             out.append("<hr>")
         elif t in ("dt", "dd"):
-            out.append(f"<{t}>{render_runs(b['runs'])}</{t}>")
+            out.append(f"<{t}{battr}>{render_runs(b['runs'], defaults, faithful)}</{t}>")
     return "".join(out)
 
 
-def render_table(b: dict) -> str:
+def render_table(b: dict, defaults=None, faithful: bool = False) -> str:
     parts = ["<table>"]
     if b.get("caption"):
         parts.append(f"<caption>{esc(b['caption'])}</caption>")
@@ -77,7 +113,8 @@ def render_table(b: dict) -> str:
                 attrs += f' colspan="{c["colspan"]}"'
             if c.get("rowspan", 1) > 1:
                 attrs += f' rowspan="{c["rowspan"]}"'
-            parts.append(f"<{tag}{attrs}>{render_blocks(c['blocks'])}</{tag}>")
+            parts.append(f"<{tag}{attrs}>"
+                         f"{render_blocks(c['blocks'], defaults=defaults, faithful=faithful)}</{tag}>")
         parts.append("</tr>")
     parts.append("</table>")
     return "".join(parts)
@@ -136,7 +173,14 @@ def canon_runs(runs: list[dict]) -> list:
         txt = re.sub(r"[\s" + SEP + r"]+", " ", r.get("t", ""))
         if not txt:
             continue
-        d = {k: v for k, v in r.items() if k != "t" and v}
+        d = {k: v for k, v in r.items()
+             if k != "t" and v and k not in ("c", "sz", "fa")}
+        flags = dict(d)
         d["t"] = txt
+        # 相邻且样式相同的 run 合并：run 怎么切分是表示细节，不该影响比对
+        if out and {k: v for k, v in out[-1].items() if k != "t"} == flags:
+            # 合并后要重新折平空白，否则两段各带一个空格会拼成两个
+            out[-1]["t"] = re.sub(r"[\s" + SEP + r"]+", " ", out[-1]["t"] + txt)
+            continue
         out.append(d)
     return out
