@@ -57,4 +57,6 @@
 | I21 | 测试策略 | [0028](decisions/0028-testing.md) · 已定（三层；UI 起步） |
 | I22 | App 图标 | [0029](decisions/0029-app-icon.md) · 已定（书 + 5E，三套变体） |
 | I23 | 标识与版本 | [0030](decisions/0030-identity-and-versioning.md) · 已定（`io.github.kusa.i5e`） |
+| I24 | 年龄分级 | [0031](decisions/0031-age-rating.md) · 已定 13+（上架地区待定） |
+| I25 | 隐私 | [0032](decisions/0032-privacy.md) · 已定（不收集 + 隐私清单） |
 
