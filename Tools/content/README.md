@@ -34,6 +34,7 @@ python3 Tools/content/run.py build --limit 400 --no-c5
 | `pack/manifest.json` | 每个文件的 sha256（--pack）|
 | `pack/content.jsonl.gz` | 阅读层压缩产物（--pack）|
 | `pack/content.db` | **App 直读**：pages + FTS5 索引 + 目录（--pack）|
+| `pack/images/` | 正文引用到、且确实存在的图片，拍平命名（--pack）|
 | `samples.json` | 黄金样本及其入选理由 |
 | `preview/index.html` | **先看这个**：左侧渲染结果，右侧 block 结构 |
 

@@ -460,8 +460,11 @@ def main() -> int:
     print(f"页面 {len(paths)}", flush=True)
 
     records: list[dict] = []
+    model.configure_images(str(SRC))
     if args.jobs > 1 and len(paths) > 200:
-        with ProcessPoolExecutor(max_workers=args.jobs) as ex:
+        with ProcessPoolExecutor(
+            max_workers=args.jobs, initializer=model.configure_images, initargs=(str(SRC),)
+        ) as ex:
             for i, rec in enumerate(ex.map(_work, paths, chunksize=40), 1):
                 records.append(rec)
                 if i % 500 == 0:
@@ -519,11 +522,14 @@ def main() -> int:
     pack = None
     if args.pack:
         t1 = time.time()
-        db = pack_mod.build(records, toc_data, {}, OUT / "pack" / "content.db")
+        db = pack_mod.build(records, toc_data, {}, OUT / "pack" / "content.db", image_root=SRC)
         con = pack_mod.open_db(OUT / "pack" / "content.db")
         toc_paths = {n["u"].split("#")[0] for n in toc_mod.walk(toc_data["nodes"]) if n.get("u")}
         c10r = pack_mod.verify(con, SEARCH_PROBES, records, toc_paths)
         con.close()
+        img = db.get("images") or {}
+        print(f"图片打包: {img.get('files', 0)} 个 / {img.get('bytes', 0) / 1048576:.1f} MB"
+              + (f" · 重名冲突 {img['collisions']}" if img.get("collisions") else ""), flush=True)
         print(f"C10 检索索引: {'通过' if c10r['pass'] else c10r} "
               f"({len(SEARCH_PROBES)} 条查询 · 库 {db['bytes'] / 1048576:.1f} MB · "
               f"{time.time() - t1:.1f}s)", flush=True)
@@ -532,6 +538,10 @@ def main() -> int:
         c8r = check.c8(records, pack["archive"], pack["manifest"])
         print(f"C8 原文还原: {'通过' if c8r['pass'] else c8r} "
               f"({time.time() - t1:.1f}s, 归档 {pack['bytes'] / 1048576:.1f} MB)", flush=True)
+
+    used_images = {p for r in records for p in (r["_check"].get("images_used") or {})}
+    dropped_images = sum(r["_check"].get("images_dropped", 0) for r in records)
+    print(f"图片: 采用 {len(used_images)} 个文件 / 丢弃 {dropped_images} 处", flush=True)
 
     spells = spell_stats(records)
     print(f"法术: {spells['total']} 条", flush=True)

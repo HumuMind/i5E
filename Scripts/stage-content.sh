@@ -16,3 +16,12 @@ fi
 mkdir -p "$(dirname "$DST")"
 cp "$SRC" "$DST"
 echo "已放入 $DST ($(du -h "$DST" | cut -f1))"
+
+IMG_SRC="$ROOT/build/pack/images"
+IMG_DST="$ROOT/i5E/Resources/images"
+if [ -d "$IMG_SRC" ]; then
+  rm -rf "$IMG_DST"
+  mkdir -p "$IMG_DST"
+  cp "$IMG_SRC"/* "$IMG_DST"/
+  echo "已放入 $IMG_DST ($(ls "$IMG_DST" | wc -l | tr -d ' ') 个文件, $(du -sh "$IMG_DST" | cut -f1))"
+fi

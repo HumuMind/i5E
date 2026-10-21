@@ -16,6 +16,10 @@ import json
 import re
 from collections import Counter
 
+import os
+import posixpath
+from urllib.parse import unquote
+
 from lxml import html as LH
 
 # 空白与不可见字符：比较文本时整体剔除，避免 <BR>、缩进、全角空格造成误报。
@@ -54,6 +58,36 @@ KNOWN_TAGS = IGNORED_TAGS | BLOCK_TAGS | TRANSPARENT_TAGS | {
     "kbd", "samp", "var", "tt", "strike", "del", "ins", "mark", "rp", "rt",
     "ruby", "bdi", "bdo", "wbr", "time", "data", "output", "progress",
 }
+
+
+# 图片解析：只认语料内、非模板目录的文件；其余（外链、缺失、CHM 模板按钮）一律丢弃。
+IMAGE_ROOT = None
+TEMPLATE_PREFIXES = ("template/", "template2/", "空白页模板/")
+
+
+def configure_images(root) -> None:
+    """多进程 worker 的初始化钩子。"""
+    global IMAGE_ROOT
+    IMAGE_ROOT = root
+
+
+def resolve_image(page_path: str, src: str) -> str | None:
+    """把页面里的相对图片路径解析成语料内路径；解析不到返回 None。"""
+    if not src or IMAGE_ROOT is None:
+        return None
+    cleaned = unquote(src).strip()
+    if not cleaned or cleaned.lower().startswith(("http:", "https:", "file:", "data:")):
+        return None
+    candidates = (
+        posixpath.normpath(posixpath.join(posixpath.dirname(page_path), cleaned)),
+        posixpath.normpath(cleaned.lstrip("/")),
+    )
+    for candidate in candidates:
+        if candidate.startswith(TEMPLATE_PREFIXES):
+            continue
+        if os.path.exists(os.path.join(IMAGE_ROOT, candidate)):
+            return candidate
+    return None
 
 
 def decode(data: bytes) -> tuple[str, str]:
@@ -255,7 +289,8 @@ def _align_indent(el) -> dict:
 
 
 class Builder:
-    def __init__(self) -> None:
+    def __init__(self, page_path: str = "") -> None:
+        self.page_path = page_path
         self._ids: list[str] = []
         self.tag_seen: Counter = Counter()
         self.tag_handled: Counter = Counter()
@@ -264,6 +299,8 @@ class Builder:
         self.unknown_tags: Counter = Counter()
         self.malformed_tags: Counter = Counter()
         self.degraded: Counter = Counter()
+        self.images_used: Counter = Counter()
+        self.images_dropped = 0
         self.ids: set[str] = set()
         self.color_runs = 0
         self.drop_color = 0
@@ -333,8 +370,12 @@ class Builder:
                 return
             elif tag == "img":
                 src = el.get("src") or el.get("data-src") or ""
-                if src:
-                    out.append({"img": src, "alt": el.get("alt") or ""})
+                resolved = resolve_image(self.page_path, src)
+                if resolved:
+                    self.images_used[resolved] = self.images_used.get(resolved, 0) + 1
+                    out.append({"img": resolved, "alt": el.get("alt") or ""})
+                else:
+                    self.images_dropped += 1
                 return
             elif tag not in ("body", "html"):
                 if el.get("style") or tag == "font":
@@ -712,7 +753,7 @@ def parse_page(path: str, data: bytes) -> dict:
     body = doc.find("body")
     if body is None:
         body = doc
-    b = Builder()
+    b = Builder(path)
     blocks = b.blocks(body)
     src = b.source_text(body)
     links = [el.get("href") for el in body.iter("a") if el.get("href")]
@@ -747,6 +788,8 @@ def parse_page(path: str, data: bytes) -> dict:
             "unknown_tags": dict(b.unknown_tags),
             "malformed_tags": dict(b.malformed_tags),
             "degraded": dict(b.degraded),
+            "images_used": dict(b.images_used),
+            "images_dropped": b.images_dropped,
             "transparent": dict(b.tag_transparent),
             "ignored": dict(b.tag_ignored),
             "color_runs": b.color_runs,

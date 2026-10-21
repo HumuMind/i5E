@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import sqlite3
 import zlib
 from pathlib import Path
@@ -66,7 +67,36 @@ def page_text(blocks: list[dict]) -> str:
     return "\n".join(p for p in parts if p.strip())
 
 
-def build(records: list[dict], toc: dict, info: dict, out_path: Path) -> dict:
+def flat_image_name(relative: str) -> str:
+    """图片在包内一律拍平：`图/a b.png` → `图_a b.png`。
+
+    Xcode 的 synchronized group 会把资源拍平复制进 bundle，保留目录结构不可靠；
+    两端用同一个确定性变换，谁也不用维护映射表。
+    """
+    return relative.replace("/", "_")
+
+
+def copy_images(records: list[dict], image_root: Path, dest: Path) -> dict:
+    used = sorted({p for r in records for p in (r.get("_check", {}).get("images_used") or {})})
+    dest.mkdir(parents=True, exist_ok=True)
+    seen: dict[str, str] = {}
+    collisions = []
+    total = 0
+    for relative in used:
+        name = flat_image_name(relative)
+        if name in seen and seen[name] != relative:
+            collisions.append((relative, seen[name]))
+            continue
+        seen[name] = relative
+        target = dest / name
+        if not target.exists():
+            shutil.copy2(image_root / relative, target)
+        total += target.stat().st_size
+    return {"files": len(seen), "bytes": total, "collisions": collisions}
+
+
+def build(records: list[dict], toc: dict, info: dict, out_path: Path,
+          image_root: Path | None = None) -> dict:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if out_path.exists():
         out_path.unlink()
@@ -120,7 +150,11 @@ def build(records: list[dict], toc: dict, info: dict, out_path: Path) -> dict:
     con.commit()
     size = out_path.stat().st_size
     con.close()
-    return {"bytes": size, "pages": len(records)}
+
+    images = {}
+    if image_root is not None:
+        images = copy_images(records, image_root, out_path.parent / "images")
+    return {"bytes": size, "pages": len(records), "images": images}
 
 
 def open_db(path: Path) -> sqlite3.Connection:

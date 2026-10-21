@@ -12,8 +12,11 @@ struct BlockView: View {
         case "h":
             heading
         case "p", "dt":
-            JustifiedText(runs: block.runsOrEmpty, fontSize: Reading.bodySize, highlight: highlight)
-                .padding(.bottom, Reading.bodySize * 0.95)
+            ParagraphView(
+                runs: block.runsOrEmpty, fontSize: Reading.bodySize,
+                highlight: highlight, availableWidth: availableWidth
+            )
+            .padding(.bottom, Reading.bodySize * 0.95)
         case "dd":
             JustifiedText(runs: block.runsOrEmpty, fontSize: Reading.bodySize, highlight: highlight)
                 .padding(.leading, 24)
@@ -77,6 +80,98 @@ struct BlockView: View {
 }
 
 // MARK: - 列表
+
+/// 段落：把连续的文本 run 合成一段，图片单独成块。
+/// 找不到的图片直接不渲染——离线包里本来就没有的那些不管（见 0016）。
+private struct ParagraphView: View {
+    let runs: [Run]
+    let fontSize: CGFloat
+    var highlight: String?
+    var availableWidth: CGFloat
+
+    private enum Piece {
+        case text([Run])
+        case image(Run)
+    }
+
+    private var pieces: [Piece] {
+        var result: [Piece] = []
+        var buffer: [Run] = []
+        for run in runs {
+            if run.img != nil {
+                if !buffer.isEmpty {
+                    result.append(.text(buffer))
+                    buffer = []
+                }
+                result.append(.image(run))
+            } else {
+                buffer.append(run)
+            }
+        }
+        if !buffer.isEmpty { result.append(.text(buffer)) }
+        return result
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(Array(pieces.enumerated()), id: \.offset) { _, piece in
+                switch piece {
+                case .text(let runs):
+                    JustifiedText(runs: runs, fontSize: fontSize, highlight: highlight)
+                case .image(let run):
+                    ContentImageView(run: run, maxWidth: availableWidth)
+                }
+            }
+        }
+    }
+}
+
+/// 从 App 包里按拍平后的文件名取图。缺图返回空视图，不留占位。
+struct ContentImageView: View {
+    let run: Run
+    var maxWidth: CGFloat
+
+    var body: some View {
+        #if canImport(UIKit)
+            if let image = Self.load(run.img) {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: maxWidth, alignment: .leading)
+                    .clipShape(.rect(cornerRadius: 4))
+            }
+        #else
+            if let image = Self.load(run.img) {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: maxWidth, alignment: .leading)
+                    .clipShape(.rect(cornerRadius: 4))
+            }
+        #endif
+    }
+
+    /// 语料内路径在打包时被拍平成 `目录_文件`，两端用同一个变换。
+    static func bundleName(for path: String) -> String {
+        path.replacingOccurrences(of: "/", with: "_")
+    }
+
+    #if canImport(UIKit)
+        static func load(_ path: String?) -> UIImage? {
+            guard let path else { return nil }
+            guard let url = Bundle.main.url(forResource: bundleName(for: path), withExtension: nil)
+            else { return nil }
+            return UIImage(contentsOfFile: url.path)
+        }
+    #else
+        static func load(_ path: String?) -> NSImage? {
+            guard let path else { return nil }
+            guard let url = Bundle.main.url(forResource: bundleName(for: path), withExtension: nil)
+            else { return nil }
+            return NSImage(contentsOf: url)
+        }
+    #endif
+}
 
 private struct ListBlockView: View {
     let block: Block

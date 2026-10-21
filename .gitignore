@@ -12,6 +12,7 @@ __pycache__/
 
 # App 构建产物与打进包的内容库（由 Scripts/stage-content.sh 生成）
 i5E/Resources/content.db
+i5E/Resources/images/
 build/DerivedData/
 build/SourcePackages/
 build/PackageCache/
