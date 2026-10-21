@@ -81,7 +81,7 @@
 | I23 ✅ | Bundle ID、签名与版本号 | 已定：[0030](../decisions/0030-identity-and-versioning.md) `io.github.kusa.i5e`，构建号取提交数 | — |
 | I24 ◐ | 年龄分级与上架地区 | 分级已定 **13+**（[0031](../decisions/0031-age-rating.md)）；上架地区待定，卡在 App 备案 | 内容含战斗、怪物、死亡描写；语言只有中文 |
 | I25 ✅ | 隐私声明与数据标签 | 已定：[0032](../decisions/0032-privacy.md) 不收集；补齐 `PrivacyInfo.xcprivacy` | — |
-| I26 | 商店页文案与截图 | 卖点排序（离线 / 免费 / 全量 / 原生排版）| 第一印象决定下载转化 |
+| I26 ◐ | 商店页文案与截图 | 文案已定 [0033](../decisions/0033-store-listing.md)；截图待 UI 定稿 | 第一印象决定下载转化 |
 | I27 | TestFlight 范围与反馈渠道 | 邀请谁、收什么反馈、多久一轮 | 没有账号系统，反馈只能靠外部渠道 |
 
 ### 设备与交互
