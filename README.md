@@ -35,6 +35,25 @@ iPad 是主要阅读场景；iPhone 适合随手查阅；Mac 适合大屏对照�
 
 项目处于起步阶段，尚无可下载版本；计划通过 TestFlight 测试并发布到 App Store。后续进展会在 issue 中更新。
 
+## 开发
+
+```bash
+# 1. 从上游内容生成内容库（约 35 秒）
+python3 Tools/content/run.py build --pack
+
+# 2. 把内容库放进 App 资源目录（32 MB，不入库）
+./Scripts/stage-content.sh
+
+# 3. 数据层测试（需要一个构建好的内容库）
+cd Packages/ContentKit
+CONTENT_DB=../../build/pack/content.db swift test
+```
+
+然后打开 `i5E.xcodeproj`。最低 iOS / macOS 26。
+
+现状：数据层（`Packages/ContentKit`）已实现并有测试覆盖；App 还没在 Xcode 里完整跑过一次，
+第一次打开若提示包依赖未解析，让 Xcode 重新解析即可。
+
 ## 参与贡献
 
 - **内容纠错**：请提交给上游 [DND5e_chm](https://github.com/DND5eChm/DND5e_chm)，本项目不直接修改原文。

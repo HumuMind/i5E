@@ -9,3 +9,11 @@ __pycache__/
 *.pyc
 
 .DS_Store
+
+# App 构建产物与打进包的内容库（由 Scripts/stage-content.sh 生成）
+i5E/Resources/content.db
+build/DerivedData/
+build/SourcePackages/
+build/PackageCache/
+build/DD/
+Packages/ContentKit/.build/
