@@ -118,7 +118,7 @@ private struct NodeRows: View {
         if node.c.isEmpty {
             Button {
                 guard let path = node.u else { return }
-                Task { await model.open(path: path) }
+                model.show(AppModel.Route(path: path))
             } label: {
                 rowLabel(systemImage: "doc.text")
             }
@@ -132,7 +132,7 @@ private struct NodeRows: View {
             } label: {
                 Button {
                     guard let path = node.u else { return }
-                    Task { await model.open(path: path) }
+                    model.show(AppModel.Route(path: path))
                 } label: {
                     rowLabel(systemImage: "book.closed")
                 }
@@ -164,7 +164,9 @@ struct SearchResultsView: View {
         } else {
             List(model.results) { hit in
                 Button {
-                    Task { await model.open(path: hit.path, blockIndex: hit.blockIndex, query: model.query) }
+                    model.show(
+                        AppModel.Route(
+                            path: hit.path, blockIndex: hit.blockIndex, highlight: model.query))
                 } label: {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(hit.title.isEmpty ? hit.path : hit.title)
@@ -191,12 +193,15 @@ struct DetailView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        if let page = model.page {
-            ReaderView(page: page)
-        } else {
+        @Bindable var model = model
+        NavigationStack(path: $model.routes) {
             ContentUnavailableView(
                 "选一页开始读", systemImage: "book",
-                description: Text("左侧目录里挑一章，或者搜索正文"))
+                description: Text("左侧目录里挑一章，或者搜索正文")
+            )
+            .navigationDestination(for: AppModel.Route.self) { route in
+                PageScreen(route: route)
+            }
         }
     }
 }

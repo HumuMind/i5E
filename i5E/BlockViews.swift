@@ -8,6 +8,7 @@ struct BlockView: View {
     var availableWidth: CGFloat = Reading.measure
 
     @Environment(\.readingTheme) private var theme
+    @Environment(AppModel.self) private var app
 
     var body: some View {
         switch block.type {
@@ -105,6 +106,7 @@ private struct ParagraphView: View {
     var availableWidth: CGFloat
 
     @Environment(\.readingTheme) private var theme
+    @Environment(AppModel.self) private var app
 
     private enum Piece {
         case text([Run])
@@ -134,7 +136,9 @@ private struct ParagraphView: View {
             ForEach(Array(pieces.enumerated()), id: \.offset) { _, piece in
                 switch piece {
                 case .text(let runs):
-                    JustifiedText(runs: runs, fontSize: fontSize, highlight: highlight, theme: theme)
+                    JustifiedText(
+                        runs: runs, fontSize: fontSize, highlight: highlight, theme: theme,
+                        onOpenLink: { app.handleLink($0) })
                 case .image(let run):
                     ContentImageView(run: run, maxWidth: availableWidth)
                 }
@@ -341,6 +345,7 @@ enum AttributedText {
                 piece.font = font
                 piece.foregroundColor = color
                 if hit { piece.backgroundColor = Color.accentColor.opacity(0.22) }
+                if let href = run.href, let url = URL(string: href) { piece.link = url }
                 if run.u == 1 { piece.underlineStyle = .single }
                 if run.s == 1 { piece.strikethroughStyle = .single }
                 result.append(piece)

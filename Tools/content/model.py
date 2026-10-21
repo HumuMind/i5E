@@ -90,6 +90,41 @@ def resolve_image(page_path: str, src: str) -> str | None:
     return None
 
 
+def resolve_link(page_path: str, href: str) -> str | None:
+    """把链接解析成"语料内路径#锚点"。
+
+    - 外部链接原样返回；
+    - 本页锚点返回 "#锚点"；
+    - 内部链接按"相对文件目录 → 相对语料根 → 扩展名互换 → 大小写"依次尝试；
+    - 解析不到返回 None（调用方会去掉 href，文字保留）。
+    """
+    if not href:
+        return None
+    cleaned = unquote(href).strip().replace("\\", "/")
+    if cleaned.lower().startswith(("http:", "https:", "mailto:")):
+        return cleaned
+    if cleaned.startswith("#"):
+        return cleaned
+    if IMAGE_ROOT is None:
+        return None
+
+    target, _, fragment = cleaned.partition("#")
+    candidates = (
+        posixpath.normpath(posixpath.join(posixpath.dirname(page_path), target)),
+        posixpath.normpath(target.lstrip("/")),
+    )
+    for candidate in candidates:
+        if not candidate.lower().endswith((".htm", ".html")):
+            continue
+        for probe in (
+            candidate,
+            candidate[:-5] + (".htm" if candidate.lower().endswith(".html") else ".html"),
+        ):
+            if os.path.exists(os.path.join(IMAGE_ROOT, probe)):
+                return probe + (("#" + fragment) if fragment else "")
+    return None
+
+
 def decode(data: bytes) -> tuple[str, str]:
     """按 BOM → UTF-8 → GB18030 的顺序解码。GB18030 是 GBK/GB2312 的超集。"""
     if data.startswith(b"\xef\xbb\xbf"):
@@ -301,6 +336,7 @@ class Builder:
         self.degraded: Counter = Counter()
         self.images_used: Counter = Counter()
         self.images_dropped = 0
+        self.links_dropped = 0
         self.ids: set[str] = set()
         self.color_runs = 0
         self.drop_color = 0
@@ -362,9 +398,11 @@ class Builder:
             elif tag in ("code", "kbd", "samp", "tt"):
                 nxt = {**ctx, "code": 1}
             elif tag == "a":
-                href = el.get("href")
-                if href:
-                    nxt = {**ctx, "href": href}
+                resolved = resolve_link(self.page_path, el.get("href") or "")
+                if resolved:
+                    nxt = {**ctx, "href": resolved}
+                elif el.get("href"):
+                    self.links_dropped += 1
             elif tag == "br":
                 out.append({**ctx, "t": SEP})
                 return
@@ -790,6 +828,7 @@ def parse_page(path: str, data: bytes) -> dict:
             "degraded": dict(b.degraded),
             "images_used": dict(b.images_used),
             "images_dropped": b.images_dropped,
+            "links_dropped": b.links_dropped,
             "transparent": dict(b.tag_transparent),
             "ignored": dict(b.tag_ignored),
             "color_runs": b.color_runs,

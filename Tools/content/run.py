@@ -542,6 +542,8 @@ def main() -> int:
     used_images = {p for r in records for p in (r["_check"].get("images_used") or {})}
     dropped_images = sum(r["_check"].get("images_dropped", 0) for r in records)
     print(f"图片: 采用 {len(used_images)} 个文件 / 丢弃 {dropped_images} 处", flush=True)
+    dropped_links = sum(r["_check"].get("links_dropped", 0) for r in records)
+    print(f"链接: 丢弃失效链接 {dropped_links} 处", flush=True)
 
     spells = spell_stats(records)
     print(f"法术: {spells['total']} 条", flush=True)

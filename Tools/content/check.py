@@ -154,7 +154,11 @@ def c3(records) -> dict:
     # 源文件里声明了 id 但 block 里丢了（等于把锚点弄断）
     lost_ids = []
     for r in records:
-        lost = r["_check"]["ids_src"] - r["_check"]["ids_block"]
+        # winchm_template_* 是 CHM 模板自带的按钮/容器锚点，不是正文锚点
+        lost = {
+            i for i in (r["_check"]["ids_src"] - r["_check"]["ids_block"])
+            if not i.startswith("winchm_template_")
+        }
         if lost:
             lost_ids.append({"path": r["path"], "ids": sorted(lost)[:5]})
             stats["lost_ids"] += len(lost)

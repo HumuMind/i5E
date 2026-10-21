@@ -1,4 +1,11 @@
 import Foundation
+
+#if canImport(UIKit)
+    import UIKit
+#endif
+#if canImport(AppKit)
+    import AppKit
+#endif
 import Observation
 import ContentKit
 
@@ -13,16 +20,18 @@ final class AppModel {
 
     private(set) var phase: Phase = .idle
     private(set) var toc: TOC?
-    private(set) var page: Page?
+
     private(set) var results: [SearchHit] = []
-    /// 从搜索结果跳转时要滚动到的位置。
-    struct Focus: Hashable {
-        var blockIndex: Int
-        var query: String
+    /// 一页的打开方式：路径 + 锚点 / 命中位置 / 高亮词。
+    struct Route: Hashable {
+        var path: String
+        var anchor: String?
+        var blockIndex: Int?
+        var highlight: String?
     }
 
-    var selectedPath: String?
-    private(set) var focus: Focus?
+    /// 详情列的导航栈。
+    var routes: [Route] = []
     var query: String = ""
     private(set) var isSearching = false
 
@@ -50,19 +59,41 @@ final class AppModel {
 
     // MARK: - 阅读
 
-    func open(path: String, blockIndex: Int? = nil, query: String? = nil) async {
-        guard let db else { return }
-        selectedPath = path
-        do {
-            let fetched = try await db.page(path: path)
-            page = fetched
-            if let blockIndex, let query {
-                focus = Focus(blockIndex: blockIndex, query: query)
+    // MARK: - 导航
+
+    func show(_ route: Route) {
+        routes = [route]
+    }
+
+    func push(_ route: Route) {
+        routes.append(route)
+    }
+
+    func page(path: String) async throws -> Page? {
+        guard let db else { return nil }
+        return try await db.page(path: path)
+    }
+
+    /// 处理正文里的链接：外链出去，本页锚点原地滚，跨页压栈。
+    func handleLink(_ url: URL) {
+        let raw = url.relativeString
+        if raw.lowercased().hasPrefix("http") {
+            #if canImport(UIKit)
+                UIApplication.shared.open(url)
+            #elseif canImport(AppKit)
+                NSWorkspace.shared.open(url)
+            #endif
+            return
+        }
+        let (path, anchor) = Page.splitLink(raw)
+        if let path, !path.isEmpty {
+            if let current = routes.last, current.path == path {
+                push(Route(path: path, anchor: anchor))
             } else {
-                focus = nil
+                push(Route(path: path, anchor: anchor))
             }
-        } catch {
-            phase = .failed(String(describing: error))
+        } else if let anchor, let current = routes.last {
+            push(Route(path: current.path, anchor: anchor))
         }
     }
 

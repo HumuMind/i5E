@@ -172,3 +172,33 @@ final class SourceStyleTests: XCTestCase {
         XCTAssertNil(SourceStyle.inlineColorHex(underlined: false, italic: true, bold: false))
     }
 }
+
+final class LinkTests: XCTestCase {
+    func testSplitLink() {
+        let a = Page.splitLink("玩家手册/魔法/法术详述/一环.html#Fireball")
+        XCTAssertEqual(a.path, "玩家手册/魔法/法术详述/一环.html")
+        XCTAssertEqual(a.anchor, "Fireball")
+
+        let b = Page.splitLink("#Acid_Splash")
+        XCTAssertNil(b.path)
+        XCTAssertEqual(b.anchor, "Acid_Splash")
+
+        let c = Page.splitLink("速查/种族.htm")
+        XCTAssertEqual(c.path, "速查/种族.htm")
+        XCTAssertNil(c.anchor)
+    }
+
+    /// 锚点要能定位到块：标题的 id、以及块上挂的 anchors 都算
+    func testBlockIndexForAnchor() throws {
+        let json = """
+            [{"type":"h","level":4,"id":"Fireball","runs":[{"t":"火球术｜Fireball"}]},
+             {"type":"p","runs":[{"t":"正文"}],"anchors":["Top"]},
+             {"type":"p","runs":[{"t":"更多"}]}]
+            """
+        let blocks = try JSONDecoder().decode([Block].self, from: Data(json.utf8))
+        let page = Page(id: 1, path: "x", title: "", blocks: blocks)
+        XCTAssertEqual(page.blockIndex(forAnchor: "Fireball"), 0)
+        XCTAssertEqual(page.blockIndex(forAnchor: "Top"), 1)
+        XCTAssertNil(page.blockIndex(forAnchor: "Missing"))
+    }
+}

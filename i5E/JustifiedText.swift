@@ -14,11 +14,13 @@ import ContentKit
         let fontSize: CGFloat
         var highlight: String?
         var theme: ReadingTheme = .light
+        var onOpenLink: (@MainActor (URL) -> Void)?
 
         var body: some View {
             JustifiedLabel(
                 attributed: Self.attributed(
-                    runs: runs, fontSize: fontSize, highlight: highlight, theme: theme))
+                    runs: runs, fontSize: fontSize, highlight: highlight, theme: theme),
+                onOpenLink: onOpenLink)
         }
 
         static func attributed(
@@ -45,6 +47,9 @@ import ContentKit
                     var pieceAttributes = attributes
                     if hit {
                         pieceAttributes[.backgroundColor] = UIColor.tintColor.withAlphaComponent(0.22)
+                    }
+                    if let href = run.href, let url = URL(string: href) {
+                        pieceAttributes[.link] = url
                     }
                     result.append(NSAttributedString(string: segment, attributes: pieceAttributes))
                 }
@@ -73,29 +78,57 @@ import ContentKit
 
 #if canImport(UIKit)
 
+    /// 用 UITextView 而不是 UILabel：正文里的链接要能点。
     private struct JustifiedLabel: UIViewRepresentable {
         let attributed: NSAttributedString
+        var onOpenLink: (@MainActor (URL) -> Void)?
 
-        func makeUIView(context: Context) -> UILabel {
-            let label = UILabel()
-            label.numberOfLines = 0
-            label.lineBreakMode = .byWordWrapping
-            label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-            label.setContentHuggingPriority(.required, for: .vertical)
-            return label
+        func makeCoordinator() -> Coordinator { Coordinator(onOpenLink: onOpenLink) }
+
+        func makeUIView(context: Context) -> UITextView {
+            let view = UITextView()
+            view.isEditable = false
+            view.isScrollEnabled = false
+            view.isSelectable = true
+            view.backgroundColor = .clear
+            view.textContainerInset = .zero
+            view.textContainer.lineFragmentPadding = 0
+            view.dataDetectorTypes = []
+            view.delegate = context.coordinator
+            view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+            return view
         }
 
-        func updateUIView(_ view: UILabel, context: Context) {
+        func updateUIView(_ view: UITextView, context: Context) {
+            context.coordinator.onOpenLink = onOpenLink
             view.attributedText = attributed
         }
 
-        func sizeThatFits(_ proposal: ProposedViewSize, uiView: UILabel, context: Context) -> CGSize? {
+        func sizeThatFits(
+            _ proposal: ProposedViewSize, uiView: UITextView, context: Context
+        ) -> CGSize? {
             guard let width = proposal.width, width > 0 else { return nil }
             let size = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
             return CGSize(width: width, height: ceil(size.height))
         }
-    }
 
+        final class Coordinator: NSObject, UITextViewDelegate {
+            var onOpenLink: (@MainActor (URL) -> Void)?
+
+            init(onOpenLink: (@MainActor (URL) -> Void)?) {
+                self.onOpenLink = onOpenLink
+            }
+
+            func textView(
+                _ textView: UITextView, shouldInteractWith URL: URL, in characterRange: NSRange,
+                interaction: UITextItemInteraction
+            ) -> Bool {
+                let handler = onOpenLink
+                MainActor.assumeIsolated { handler?(URL) }
+                return false
+            }
+        }
+    }
 #else
 
     /// macOS 上没有 UIKit；先用 SwiftUI 的 Text，两端对齐在 Mac 端待补（可用 NSTextView）。
@@ -104,6 +137,7 @@ import ContentKit
         let fontSize: CGFloat
         var highlight: String?
         var theme: ReadingTheme = .light
+        var onOpenLink: (@MainActor (URL) -> Void)?
 
         var body: some View {
             Text(AttributedText.make(runs, size: fontSize, highlight: highlight, theme: theme))

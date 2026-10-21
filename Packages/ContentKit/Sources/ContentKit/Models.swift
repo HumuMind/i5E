@@ -141,3 +141,23 @@ public struct SearchHit: Sendable, Identifiable, Hashable {
         self.blockIndex = blockIndex
     }
 }
+
+extension Page {
+    /// 找到锚点所在的顶层 block 序号。
+    public func blockIndex(forAnchor anchor: String) -> Int? {
+        for (index, block) in blocks.enumerated() {
+            if block.id == anchor { return index }
+            if block.anchors?.contains(anchor) == true { return index }
+        }
+        return nil
+    }
+
+    /// 解析链接里的路径与锚点。
+    public static func splitLink(_ href: String) -> (path: String?, anchor: String?) {
+        if href.hasPrefix("#") { return (nil, String(href.dropFirst())) }
+        let parts = href.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)
+        let path = parts.first.map(String.init)
+        let anchor = parts.count > 1 ? String(parts[1]) : nil
+        return (path, anchor)
+    }
+}

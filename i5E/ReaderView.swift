@@ -11,13 +11,13 @@ enum Reading {
 
 struct ReaderView: View {
     let page: Page
+    var highlight: String?
+    var scrollTarget: Int?
 
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var colorScheme
 
     private var theme: ReadingTheme { .resolve(colorScheme) }
-
-    private var focus: AppModel.Focus? { model.focus }
 
     /// 阅读区实际宽度，表格按它算列宽（窄屏时小于版心）。
     @State private var contentWidth: CGFloat = Reading.measure
@@ -28,7 +28,7 @@ struct ReaderView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(page.blocks.enumerated()), id: \.offset) { index, block in
                         BlockView(
-                            block: block, highlight: focus?.query, availableWidth: contentWidth
+                            block: block, highlight: highlight, availableWidth: contentWidth
                         )
                         .id(index)
                     }
@@ -45,19 +45,59 @@ struct ReaderView: View {
                 .background(theme.surface)
             }
             .background(theme.background)
-            .task(id: focus) {
-                guard let focus else { return }
+            .task(id: scrollTarget) {
+                guard let scrollTarget else { return }
                 // 等一帧，等布局出来再滚，否则 scrollTo 会落空
-                try? await Task.sleep(for: .milliseconds(50))
+                try? await Task.sleep(for: .milliseconds(60))
                 withAnimation(.easeInOut(duration: 0.2)) {
-                    proxy.scrollTo(focus.blockIndex, anchor: .top)
+                    proxy.scrollTo(scrollTarget, anchor: .top)
                 }
             }
         }
         .environment(\.readingTheme, theme)
+        .environment(
+            \.openURL,
+            OpenURLAction { url in
+                model.handleLink(url)
+                return .handled
+            }
+        )
         .navigationTitle(page.title.isEmpty ? page.path : page.title)
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
         #endif
+    }
+}
+
+/// 按路由加载页面；锚点在这里解析成 block 序号。
+struct PageScreen: View {
+    let route: AppModel.Route
+
+    @Environment(AppModel.self) private var model
+    @State private var page: Page?
+    @State private var target: Int?
+
+    var body: some View {
+        Group {
+            if let page {
+                ReaderView(page: page, highlight: route.highlight, scrollTarget: target)
+            } else {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .task(id: route) { await load() }
+    }
+
+    private func load() async {
+        let loaded = try? await model.page(path: route.path)
+        page = loaded
+        guard let loaded else { return }
+        if let index = route.blockIndex {
+            target = index
+        } else if let anchor = route.anchor {
+            target = loaded.blockIndex(forAnchor: anchor)
+        } else {
+            target = nil
+        }
     }
 }
