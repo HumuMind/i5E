@@ -29,7 +29,6 @@ struct ReferenceView: View {
         }
         .background(theme.background)
         .environment(\.readingTheme, theme)
-        .environment(\.readingMetrics, metrics)
         .overlay(alignment: .bottomTrailing) { modeToggle }
         .navigationTitle(page.title.isEmpty ? page.path : page.title)
         #if os(iOS)

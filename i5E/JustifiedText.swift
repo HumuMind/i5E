@@ -102,6 +102,8 @@ import ContentKit
         func updateUIView(_ view: UITextView, context: Context) {
             context.coordinator.onOpenLink = onOpenLink
             view.attributedText = attributed
+            // 字号变化后必须让 UIKit 重新算高度，否则 SwiftUI 会沿用旧尺寸
+            view.invalidateIntrinsicContentSize()
         }
 
         func sizeThatFits(

@@ -40,3 +40,16 @@ I16。现排版是固定的 19pt，标题只是普通文本，表格逐格朗读
 ## 重审条件
 
 - 如果 App Store 审核对手势/朗读有具体要求，或收到低视力用户反馈字号仍不够，再评估 Dynamic Type。
+
+## 补记：字号设置一开始不生效
+
+设置页能改、也能持久化，但正文纹丝不动。原因是 `readingMetrics` 这个环境值
+在 `ReaderView` / `ReferenceView` 里被"读出来又原样注回去"，而**根视图从来没有
+把 `AppModel.metrics` 放进去**——于是整棵树永远拿到默认的 19pt。
+
+修法：只在 `i5EApp` 注入一次，子视图只读不覆盖。另外给 `UITextView` 的
+`updateUIView` 加了 `invalidateIntrinsicContentSize()`，否则字号变了、
+UIKit 仍返回旧高度，SwiftUI 会沿用旧尺寸。
+
+教训：环境值"读—写同名键"是个静默的错误模式——它不会崩，也不会警告，
+只是安静地不生效。以后再引入环境值，注入点只应有一处。

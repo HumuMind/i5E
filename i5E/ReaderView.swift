@@ -82,7 +82,6 @@ struct ReaderView: View {
             }
         }
         .environment(\.readingTheme, theme)
-        .environment(\.readingMetrics, metrics)
         .environment(
             \.openURL,
             OpenURLAction { url in
