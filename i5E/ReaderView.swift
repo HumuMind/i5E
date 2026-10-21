@@ -102,10 +102,15 @@ struct PageScreen: View {
     @State private var page: Page?
     @State private var target: Int?
     @State private var currentOffset = 0
+    @State private var failed = false
 
     var body: some View {
         Group {
-            if let page, let reference = ReferenceTableExtractor.extract(from: page) {
+            if failed {
+                ContentUnavailableView(
+                    "这一页打不开", systemImage: "exclamationmark.triangle",
+                    description: Text(route.path))
+            } else if let page, let reference = ReferenceTableExtractor.extract(from: page) {
                 ReferenceView(page: page, table: reference)
             } else if let page {
                 ReaderView(
@@ -140,9 +145,13 @@ struct PageScreen: View {
     }
 
     private func load() async {
+        failed = false
         let loaded = try? await model.page(path: route.path)
         page = loaded
-        guard let loaded else { return }
+        guard let loaded else {
+            failed = true
+            return
+        }
         if let offset = route.offset {
             target = PageText.blockIndex(forOffset: offset, in: loaded.blocks) ?? 0
             currentOffset = offset

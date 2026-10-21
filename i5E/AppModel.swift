@@ -158,8 +158,9 @@ final class AppModel {
 
     /// 处理正文里的链接：外链出去，本页锚点原地滚，跨页压栈。
     func handleLink(_ url: URL) {
-        let raw = url.relativeString
-        if raw.lowercased().hasPrefix("http") {
+        if let scheme = url.scheme?.lowercased(),
+            ["http", "https", "mailto"].contains(scheme)
+        {
             #if canImport(UIKit)
                 UIApplication.shared.open(url)
             #elseif canImport(AppKit)
@@ -167,7 +168,8 @@ final class AppModel {
             #endif
             return
         }
-        let (path, anchor) = Page.splitLink(raw)
+
+        let (path, anchor) = Page.splitURL(url)
         if let path, !path.isEmpty {
             push(Route(path: path, anchor: anchor))
         } else if let anchor, let current = routes.last {

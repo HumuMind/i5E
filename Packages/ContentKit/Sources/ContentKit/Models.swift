@@ -152,6 +152,15 @@ extension Page {
         return nil
     }
 
+    /// 从 `URL` 解析路径与锚点。
+    ///
+    /// 注意：含中文的链接经 `URL(string:)` 之后，`relativeString` 是百分号编码的，
+    /// 直接拿去查库会查不到。这里用 `url.path`（已解码）而不是字符串拆分。
+    public static func splitURL(_ url: URL) -> (path: String?, anchor: String?) {
+        let decoded = url.path.removingPercentEncoding ?? url.path
+        return (decoded.isEmpty ? nil : decoded, url.fragment)
+    }
+
     /// 解析链接里的路径与锚点。
     public static func splitLink(_ href: String) -> (path: String?, anchor: String?) {
         if href.hasPrefix("#") { return (nil, String(href.dropFirst())) }

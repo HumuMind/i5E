@@ -308,3 +308,21 @@ final class EditionTests: XCTestCase {
         XCTAssertFalse(new.intersection(old).isEmpty, "两版应共用大量 id")
     }
 }
+
+final class LinkURLTests: XCTestCase {
+    /// 中文路径经 URL 之后必须还能解析回原文（曾因此导致页面永远加载中）
+    func testChinesePathSurvivesURL() throws {
+        let href = "玩家手册2024/法术详述/一环.html#Fireball"
+        let url = try XCTUnwrap(URL(string: href))
+        let split = Page.splitURL(url)
+        XCTAssertEqual(split.path, "玩家手册2024/法术详述/一环.html")
+        XCTAssertEqual(split.anchor, "Fireball")
+    }
+
+    func testAnchorOnlyURL() throws {
+        let url = try XCTUnwrap(URL(string: "#Acid_Splash"))
+        let split = Page.splitURL(url)
+        XCTAssertNil(split.path)
+        XCTAssertEqual(split.anchor, "Acid_Splash")
+    }
+}
