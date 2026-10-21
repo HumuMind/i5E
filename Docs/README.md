@@ -55,4 +55,5 @@
 | I19 | 内容更新 | [0026](decisions/0026-offline-updates.md) · 已定（随 App 发版，不联网） |
 | I20 | 包体 | [0027](decisions/0027-bundle-size.md) · 已定（48 MB，预算 80 MB） |
 | I21 | 测试策略 | [0028](decisions/0028-testing.md) · 已定（三层；UI 起步） |
+| I22 | App 图标 | [0029](decisions/0029-app-icon.md) · 已定（书 + 5E，三套变体） |
 
