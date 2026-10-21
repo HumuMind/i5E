@@ -58,6 +58,7 @@ struct ReaderView: View {
                 .padding(.vertical, 40)
                 .frame(maxWidth: .infinity)
                 .background(theme.surface)
+                .accessibilityIdentifier("reader.content")
             }
             .background(theme.background)
             .scrollPosition(id: $topBlock)

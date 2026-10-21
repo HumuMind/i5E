@@ -60,6 +60,7 @@ private struct SearchField: View {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
             TextField("搜索正文", text: $text)
                 .textFieldStyle(.plain)
+                .accessibilityIdentifier("sidebar.search")
                 #if os(iOS)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
@@ -150,6 +151,7 @@ private struct NodeRows: View {
             }
             .buttonStyle(.plain)
             .disabled(node.u == nil)
+            .accessibilityIdentifier("toc.row.\(node.t)")
         } else {
             DisclosureGroup(isExpanded: $expanded) {
                 ForEach(node.c) { child in
@@ -222,6 +224,7 @@ struct SearchResultsView: View {
                     .padding(.vertical, 2)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("search.result.\(hit.id)")
             }
         }
     }

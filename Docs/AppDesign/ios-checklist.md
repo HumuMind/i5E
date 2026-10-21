@@ -57,7 +57,7 @@
 | I18 ✅ | 分发与许可 | 已定：[0025](../decisions/0025-license-distribution.md) 目标 App Store，代码 MIT、内容沿用 GPL |
 | I19 ✅ | 内容更新 | 已定：[0026](../decisions/0026-offline-updates.md) 随 App 发版，完全离线 |
 | I20 ✅ | 包体 | 已定：[0027](../decisions/0027-bundle-size.md) 48 MB，预算 80 MB，图片上限 1600px |
-| I21 | 测试策略 | 快照测试、UI 测试、真机矩阵；内容侧已由 C1–C10 覆盖，App 侧要补什么 |
+| I21 ✅ | 测试策略 | 已定：[0028](../decisions/0028-testing.md) 三层；UI 起步 1 条，不做快照 |
 
 ## 已知会影响设计的数据事实
 

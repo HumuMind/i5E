@@ -44,6 +44,7 @@ python3 Tools/content/run.py build --pack   # 生成内容库（约 35 秒）
 ./Scripts/build.sh                          # 构建 App（iOS 模拟器）
 ./Scripts/test.sh                           # 数据层测试（5 个，含跨语言正文哈希）
 ./Scripts/lint.sh                           # swift-format + swiftlint
+./Scripts/uitest.sh                         # UI 冒烟测试（macOS，约 35 秒）
 ```
 
 或者直接打开 `i5E.xcodeproj`。最低 iOS / macOS 26。

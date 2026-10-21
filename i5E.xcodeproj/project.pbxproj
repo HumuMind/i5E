@@ -11,12 +11,28 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		C10000000000000000000002 /* i5EUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = i5EUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000003 /* i5E.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = i5E.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		C10000000000000000000009 /* i5EUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = i5EUITests;
+			sourceTree = "<group>";
+		};
 		A10000000000000000000007 /* i5E */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = i5E; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXContainerItemProxy section */
+		C1000000000000000000000B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A10000000000000000000002;
+			remoteInfo = i5E;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A10000000000000000000005 /* Frameworks */ = {
@@ -27,6 +43,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C10000000000000000000004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -34,6 +57,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000007 /* i5E */,
+				C10000000000000000000009 /* i5EUITests */,
 				A10000000000000000000011 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -42,6 +66,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000003 /* i5E.app */,
+				C10000000000000000000002 /* i5EUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -71,6 +96,27 @@
 			productName = i5E;
 			productReference = A10000000000000000000003 /* i5E.app */;
 			productType = "com.apple.product-type.application";
+		};
+		C10000000000000000000001 /* i5EUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C10000000000000000000006;
+			buildPhases = (
+				C10000000000000000000003 /* Sources */,
+				C10000000000000000000004 /* Frameworks */,
+				C10000000000000000000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C1000000000000000000000A /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				C10000000000000000000009 /* i5EUITests */,
+			);
+			name = i5EUITests;
+			productName = i5EUITests;
+			productReference = C10000000000000000000002 /* i5EUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
 
@@ -106,12 +152,28 @@
 			projectRoot = "";
 			targets = (
 				A10000000000000000000002 /* i5E */,
+				C10000000000000000000001 /* i5EUITests */,
 			);
 		};
 /* End PBXProject section */
 
+/* Begin PBXTargetDependency section */
+		C1000000000000000000000A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A10000000000000000000002 /* i5E */;
+			targetProxy = C1000000000000000000000B /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin PBXResourcesBuildPhase section */
 		A10000000000000000000006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C10000000000000000000005 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -122,6 +184,13 @@
 
 /* Begin PBXSourcesBuildPhase section */
 		A10000000000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C10000000000000000000003 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -238,6 +307,42 @@
 			};
 			name = Release;
 		};
+		C10000000000000000000007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.i5e.reader.uitests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = i5E;
+			};
+			name = Debug;
+		};
+		C10000000000000000000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.i5e.reader.uitests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = i5E;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -255,6 +360,15 @@
 			buildConfigurations = (
 				A1000000000000000000000C /* Debug */,
 				A1000000000000000000000D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C10000000000000000000006 /* Build configuration list for PBXNativeTarget "i5EUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C10000000000000000000007 /* Debug */,
+				C10000000000000000000008 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
