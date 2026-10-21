@@ -326,3 +326,35 @@ final class LinkURLTests: XCTestCase {
         XCTAssertEqual(split.anchor, "Acid_Splash")
     }
 }
+
+final class MetricsTests: XCTestCase {
+    func testMeasureScalesWithFontSize() {
+        let small = ReadingMetrics.forSize(17)
+        let large = ReadingMetrics.forSize(22)
+        XCTAssertLessThan(small.bodySize, large.bodySize)
+        XCTAssertLessThan(small.measure, large.measure)
+        // 每行字数保持在合理区间
+        for metrics in [small, ReadingMetrics.standard, large] {
+            let charsPerLine = metrics.measure / metrics.bodySize
+            XCTAssertGreaterThan(charsPerLine, 30)
+            XCTAssertLessThan(charsPerLine, 45)
+        }
+    }
+
+    func testTableSizeLadder() {
+        let standard = ReadingMetrics.standard
+        XCTAssertEqual(standard.tableSize(columnCount: 2), 19)
+        XCTAssertEqual(standard.tableSize(columnCount: 4), 16)
+        XCTAssertEqual(standard.tableSize(columnCount: 11), 13)
+        // 大字号下也不会低于 12
+        XCTAssertGreaterThanOrEqual(ReadingMetrics.forSize(22).tableSize(columnCount: 11), 12)
+    }
+
+    func testFontSizePersists() {
+        let suite = UserDefaults(suiteName: "i5e.font.\(UUID().uuidString)")!
+        let store = UserDefaultsReadingStore(defaults: suite)
+        XCTAssertNil(store.loadFontSize())
+        store.saveFontSize(22)
+        XCTAssertEqual(store.loadFontSize(), 22)
+    }
+}

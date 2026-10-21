@@ -40,6 +40,9 @@ final class AppModel {
     private var db: ContentDatabase?
     private let store: ReadingStore = UserDefaultsReadingStore()
     private(set) var bookmarks: [Bookmark] = []
+    /// 阅读排版尺寸，随字号档位变化。
+    private(set) var metrics: ReadingMetrics = .standard
+    private(set) var pageCount = 0
     /// 页面路径 → 从顶层到该页的标题链，用于显示"章节路径"。
     private(set) var chapterPath: [String: [String]] = [:]
     private var searchTask: Task<Void, Never>?
@@ -61,6 +64,15 @@ final class AppModel {
             chapterPath = Self.buildChapterPaths(TOCSectionBuilder.build(from: tree.nodes))
 
             bookmarks = store.bookmarks()
+            if let size = store.loadFontSize() {
+                metrics = .forSize(size)
+            }
+            if let raw = try? await database.metaValue("pages"),
+                let data = raw.data(using: .utf8),
+                let count = try? JSONDecoder().decode(Int.self, from: data)
+            {
+                pageCount = count
+            }
             if let last = store.loadPosition() {
                 routes = [
                     Route(path: last.path, offset: last.offset)
@@ -91,6 +103,11 @@ final class AppModel {
         if let current, current.path == path, abs(current.offset - offset) < 80 { return }
         store.savePosition(
             ReadingPosition(path: path, offset: offset, snippet: snippet))
+    }
+
+    func setFontStep(_ step: ReadingMetrics.Step) {
+        metrics = step.metrics
+        store.saveFontSize(step.rawValue)
     }
 
     func refreshBookmarks() {

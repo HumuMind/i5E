@@ -48,12 +48,15 @@ public protocol ReadingStore: Sendable {
     func add(_ bookmark: Bookmark)
     func remove(id: UUID)
     func isBookmarked(path: String, offset: Int) -> Bool
+    func loadFontSize() -> Double?
+    func saveFontSize(_ size: Double)
 }
 
 public final class UserDefaultsReadingStore: ReadingStore, @unchecked Sendable {
     private let defaults: UserDefaults
     private let positionKey = "reading.position"
     private let bookmarksKey = "reading.bookmarks"
+    private let fontSizeKey = "reading.fontSize"
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
@@ -93,6 +96,15 @@ public final class UserDefaultsReadingStore: ReadingStore, @unchecked Sendable {
 
     public func isBookmarked(path: String, offset: Int) -> Bool {
         bookmarks().contains { $0.path == path && abs($0.offset - offset) < 200 }
+    }
+
+    public func loadFontSize() -> Double? {
+        let value = defaults.double(forKey: fontSizeKey)
+        return value > 0 ? value : nil
+    }
+
+    public func saveFontSize(_ size: Double) {
+        defaults.set(size, forKey: fontSizeKey)
     }
 
     private func persist(_ list: [Bookmark]) {

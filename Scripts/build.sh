@@ -10,6 +10,7 @@ if [ ! -f "i5E/Resources/content.db" ]; then
   echo "      先跑 ./Scripts/stage-content.sh" >&2
 fi
 
+# DESTINATION=generic/platform=macOS ./Scripts/build.sh 可以构建 Mac 目标
 DESTINATION=${DESTINATION:-generic/platform=iOS Simulator}
 DERIVED=${DERIVED_DATA:-"$ROOT/build/DerivedData"}
 
@@ -19,9 +20,6 @@ xcodebuild \
   -scheme i5E \
   -destination "$DESTINATION" \
   -derivedDataPath "$DERIVED" \
-  -clonedSourcePackagesDirPath "$ROOT/build/SourcePackages" \
-  -packageCachePath "$ROOT/build/PackageCache" \
-  -disableAutomaticPackageResolution \
   CODE_SIGNING_ALLOWED=NO \
   build "$@" 2>&1 | tee "$ROOT/build/xcodebuild.log" | \
   grep -E "^(error|warning): |\*\* BUILD" || true

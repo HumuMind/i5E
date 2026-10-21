@@ -18,11 +18,13 @@ struct ReaderView: View {
 
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.readingMetrics) private var metrics
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var theme: ReadingTheme { .resolve(colorScheme) }
 
     /// 阅读区实际宽度，表格按它算列宽（窄屏时小于版心）。
-    @State private var contentWidth: CGFloat = Reading.measure
+    @State private var contentWidth: CGFloat = ReadingMetrics.standard.measure
     @State private var topBlock: Int?
     @State private var saveTask: Task<Void, Never>?
 
@@ -46,7 +48,7 @@ struct ReaderView: View {
                     }
                 }
                 .scrollTargetLayout()
-                .frame(maxWidth: Reading.measure, alignment: .leading)
+                .frame(maxWidth: metrics.measure, alignment: .leading)
                 .onGeometryChange(for: CGFloat.self) { proxy in
                     proxy.size.width
                 } action: { width in
@@ -74,12 +76,13 @@ struct ReaderView: View {
                 guard let scrollTarget else { return }
                 // 等一帧，等布局出来再滚，否则 scrollTo 会落空
                 try? await Task.sleep(for: .milliseconds(60))
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                     proxy.scrollTo(scrollTarget, anchor: .top)
                 }
             }
         }
         .environment(\.readingTheme, theme)
+        .environment(\.readingMetrics, metrics)
         .environment(
             \.openURL,
             OpenURLAction { url in
@@ -103,6 +106,7 @@ struct PageScreen: View {
     @State private var target: Int?
     @State private var currentOffset = 0
     @State private var failed = false
+    @State private var showingSettings = false
 
     var body: some View {
         Group {
@@ -125,6 +129,13 @@ struct PageScreen: View {
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
                         Button {
+                            showingSettings = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                        }
+                    }
+                    ToolbarItem(placement: .primaryAction) {
+                        Button {
                             model.toggleBookmark(
                                 path: page.path, offset: currentOffset,
                                 title: page.title,
@@ -142,6 +153,9 @@ struct PageScreen: View {
             }
         }
         .task(id: route) { await load() }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView()
+        }
     }
 
     private func load() async {

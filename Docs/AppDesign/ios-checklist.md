@@ -47,7 +47,7 @@
 | I13 ✅ | 速查页 | 已定：[0020](../decisions/0020-reference-pages.md) 卡片瀑布流 + 筛选，悬浮开关切原版 |
 | I14 ✅ | 双版本 | 已定：[0021](../decisions/0021-editions.md) 章节路径 + 旧版徽标，不做筛选 |
 | I15 ✗ | 实体页 | 不做：[0022](../decisions/0022-no-entity-pages.md) 速查表已跨书聚合，卡片筛选已覆盖 |
-| I16 | 可访问性 | 动态字体、VoiceOver 读表格与缩写、对比度 |
+| I16 ✅ | 可访问性 | 已定：[0023](../decisions/0023-accessibility.md) 三档字号 + VoiceOver 标签 + 跟随系统偏好 |
 
 ## 第三批：上线前
 

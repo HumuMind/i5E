@@ -10,6 +10,8 @@ struct ReferenceView: View {
 
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.readingMetrics) private var metrics
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private enum Mode { case cards, table }
 
@@ -27,6 +29,7 @@ struct ReferenceView: View {
         }
         .background(theme.background)
         .environment(\.readingTheme, theme)
+        .environment(\.readingMetrics, metrics)
         .overlay(alignment: .bottomTrailing) { modeToggle }
         .navigationTitle(page.title.isEmpty ? page.path : page.title)
         #if os(iOS)
@@ -185,10 +188,22 @@ struct ReferenceView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 10).stroke(theme.border, lineWidth: 0.5)
         )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(cardLabel(row))
+        .accessibilityAddTraits(row.first?.link == nil ? [] : .isButton)
         .contentShape(.rect)
         .onTapGesture {
             if let href = row.first?.link { follow(href) }
         }
+    }
+
+    /// 卡片朗读文本：「火球术，环阶：三环，学派：塑能」。
+    private func cardLabel(_ row: [ReferenceCell]) -> String {
+        row.enumerated().compactMap { index, cell in
+            guard !cell.text.isEmpty else { return nil }
+            return index == 0 ? cell.text : "\(fieldLabel(index))：\(cell.text)"
+        }
+        .joined(separator: "，")
     }
 
     private func fieldLabel(_ index: Int) -> String {
@@ -271,7 +286,7 @@ struct ReferenceView: View {
     private func toggleItem(_ item: Mode, icon: String, label: String) -> some View {
         let active = mode == item
         return Button {
-            withAnimation(.easeInOut(duration: 0.15)) { mode = item }
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.15)) { mode = item }
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: icon).font(.caption)

@@ -3,9 +3,10 @@ import ContentKit
 
 /// 单个 block 的渲染。表格与图片是简化实现，见文件末尾说明。
 struct BlockView: View {
+    @Environment(\.readingMetrics) private var metrics
     let block: Block
     var highlight: String?
-    var availableWidth: CGFloat = Reading.measure
+    var availableWidth: CGFloat = ReadingMetrics.standard.measure
 
     @Environment(\.readingTheme) private var theme
     @Environment(AppModel.self) private var app
@@ -16,17 +17,17 @@ struct BlockView: View {
             heading
         case "p", "dt":
             ParagraphView(
-                runs: block.runsOrEmpty, fontSize: Reading.bodySize,
+                runs: block.runsOrEmpty, fontSize: metrics.bodySize,
                 highlight: highlight, availableWidth: availableWidth
             )
-            .padding(.bottom, Reading.bodySize * 0.95)
+            .padding(.bottom, metrics.bodySize * 0.95)
         case "dd":
             JustifiedText(
-                runs: block.runsOrEmpty, fontSize: Reading.bodySize,
+                runs: block.runsOrEmpty, fontSize: metrics.bodySize,
                 highlight: highlight, theme: theme
             )
             .padding(.leading, 24)
-            .padding(.bottom, Reading.bodySize * 0.6)
+            .padding(.bottom, metrics.bodySize * 0.6)
         case "list":
             ListBlockView(block: block, highlight: highlight, availableWidth: availableWidth)
         case "table":
@@ -84,11 +85,11 @@ struct BlockView: View {
             }
         return Text(
             AttributedText.make(
-                block.runsOrEmpty, size: Reading.bodySize * scale,
+                block.runsOrEmpty, size: metrics.bodySize * scale,
                 bold: weight == .bold, highlight: highlight,
                 theme: theme, defaultColor: headingDefaultColor)
         )
-        .lineSpacing(Reading.bodySize * scale * 0.4)
+        .lineSpacing(metrics.bodySize * scale * 0.4)
         .padding(.top, level <= 2 ? 26 : 18)
         .padding(.bottom, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -100,6 +101,7 @@ struct BlockView: View {
 /// 段落：把连续的文本 run 合成一段，图片单独成块。
 /// 找不到的图片直接不渲染——离线包里本来就没有的那些不管（见 0016）。
 private struct ParagraphView: View {
+    @Environment(\.readingMetrics) private var metrics
     let runs: [Run]
     let fontSize: CGFloat
     var highlight: String?
@@ -160,6 +162,7 @@ struct ContentImageView: View {
                     .aspectRatio(contentMode: .fit)
                     .frame(maxWidth: maxWidth, alignment: .leading)
                     .clipShape(.rect(cornerRadius: 4))
+                    .accessibilityLabel(run.alt?.isEmpty == false ? run.alt! : "插图")
             }
         #else
             if let image = Self.load(run.img) {
@@ -195,9 +198,10 @@ struct ContentImageView: View {
 }
 
 private struct ListBlockView: View {
+    @Environment(\.readingMetrics) private var metrics
     let block: Block
     var highlight: String?
-    var availableWidth: CGFloat = Reading.measure
+    var availableWidth: CGFloat = ReadingMetrics.standard.measure
 
     @Environment(\.readingTheme) private var theme
 
@@ -206,17 +210,17 @@ private struct ListBlockView: View {
             ForEach(Array((block.items ?? []).enumerated()), id: \.offset) { index, item in
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(marker(index))
-                        .font(.custom("Songti SC", size: Reading.bodySize))
+                        .font(.custom("Songti SC", size: metrics.bodySize))
                         .foregroundStyle(.secondary)
                         .frame(minWidth: 18, alignment: .trailing)
                     VStack(alignment: .leading, spacing: 8) {
                         if !item.runs.isEmpty {
                             Text(
                                 AttributedText.make(
-                                    item.runs, size: Reading.bodySize,
+                                    item.runs, size: metrics.bodySize,
                                     highlight: highlight)
                             )
-                            .lineSpacing(Reading.lineSpacing)
+                            .lineSpacing(metrics.lineSpacing)
                         }
                         ForEach(Array(item.blocks.enumerated()), id: \.offset) { _, inner in
                             BlockView(block: inner, highlight: highlight, availableWidth: availableWidth)
@@ -226,7 +230,7 @@ private struct ListBlockView: View {
             }
         }
         .padding(.leading, 4)
-        .padding(.bottom, Reading.bodySize * 0.95)
+        .padding(.bottom, metrics.bodySize * 0.95)
     }
 
     private func marker(_ index: Int) -> String {
@@ -239,6 +243,7 @@ private struct ListBlockView: View {
 /// 表格：列宽按内容估算、自然宽度不铺满、支持 colspan、行级懒加载。
 /// rowspan 不支持（全库 40 个表），合并格渲染在首行，被覆盖的格子留空。
 private struct TableBlockView: View {
+    @Environment(\.readingMetrics) private var metrics
     let block: Block
     var availableWidth: CGFloat
 
@@ -248,7 +253,7 @@ private struct TableBlockView: View {
 
     private var fontSize: CGFloat {
         switch columnCount {
-        case ...2: Reading.bodySize
+        case ...2: metrics.bodySize
         case 3...4: 16
         default: 13
         }
@@ -257,7 +262,7 @@ private struct TableBlockView: View {
     private var widths: [CGFloat] {
         TableLayoutCalculator.widths(
             block, fontSize: fontSize,
-            available: min(availableWidth, Reading.measure) - TableLayoutCalculator.horizontalPadding)
+            available: min(availableWidth, metrics.measure) - TableLayoutCalculator.horizontalPadding)
     }
 
     private var totalWidth: CGFloat { widths.reduce(0, +) }
@@ -272,6 +277,8 @@ private struct TableBlockView: View {
                 }
                 .frame(width: totalWidth, alignment: .leading)
                 .background(rowColor(row))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(rowLabel(row))
             }
         }
         .overlay(Rectangle().stroke(theme.border, lineWidth: 0.5))
@@ -279,6 +286,20 @@ private struct TableBlockView: View {
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.vertical, 10)
         .padding(.bottom, 12)
+    }
+
+    /// 表格行的朗读文本：「物品名：火球术，环阶：三环」。
+    private func rowLabel(_ row: ContentKit.TableRow) -> String {
+        row.cells.enumerated().compactMap { index, cell in
+            let text = cell.blocks.compactMap { $0.runsOrEmpty.compactMap(\.t).joined() }
+                .joined().trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return nil }
+            let header = block.rows?.first?.cells
+            let name = (header.flatMap { index < $0.count ? $0[index] : nil })
+                .map { $0.blocks.compactMap { $0.runsOrEmpty.compactMap(\.t).joined() }.joined() }
+            return (name?.isEmpty == false ? name! + "：" : "") + text
+        }
+        .joined(separator: "，")
     }
 
     private func rowColor(_ row: ContentKit.TableRow) -> Color {
