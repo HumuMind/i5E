@@ -40,6 +40,26 @@ public enum PageText {
         return out
     }
 
+    /// 某个顶层 block 的正文起始偏移（用于保存阅读位置）。
+    public static func offset(ofBlock index: Int, in blocks: [Block]) -> Int? {
+        var cursor = 0
+        for leaf in nonEmptyLeaves(blocks) {
+            if leaf.blockIndex == index { return cursor }
+            cursor += leaf.text.count + 1
+        }
+        return nil
+    }
+
+    /// 取某个偏移附近的一段文字，作为位置失效时的兜底线索。
+    public static func snippet(at offset: Int, in blocks: [Block], length: Int = 20) -> String {
+        let text = of(blocks)
+        guard !text.isEmpty else { return "" }
+        let clamped = min(max(0, offset), text.count)
+        let start = text.index(text.startIndex, offsetBy: clamped)
+        let end = text.index(start, offsetBy: length, limitedBy: text.endIndex) ?? text.endIndex
+        return text[start..<end].replacingOccurrences(of: "\n", with: " ")
+    }
+
     /// 把整页正文里的字符偏移映射到顶层 block 序号。找不到时返回 nil。
     public static func blockIndex(forOffset offset: Int, in blocks: [Block]) -> Int? {
         var cursor = 0

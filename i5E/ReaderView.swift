@@ -13,6 +13,8 @@ struct ReaderView: View {
     let page: Page
     var highlight: String?
     var scrollTarget: Int?
+    /// 滚动时回报当前顶部 block 的字符偏移。
+    var onPositionChange: ((Int) -> Void)?
 
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var colorScheme
@@ -21,11 +23,21 @@ struct ReaderView: View {
 
     /// 阅读区实际宽度，表格按它算列宽（窄屏时小于版心）。
     @State private var contentWidth: CGFloat = Reading.measure
+    @State private var topBlock: Int?
+    @State private var saveTask: Task<Void, Never>?
+
+    private var chapterCaption: some View {
+        Text(model.pathTitles(for: page.path).joined(separator: " › "))
+            .font(.footnote)
+            .foregroundStyle(theme.muted)
+            .padding(.bottom, 18)
+    }
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    chapterCaption
                     ForEach(Array(page.blocks.enumerated()), id: \.offset) { index, block in
                         BlockView(
                             block: block, highlight: highlight, availableWidth: contentWidth
@@ -33,6 +45,7 @@ struct ReaderView: View {
                         .id(index)
                     }
                 }
+                .scrollTargetLayout()
                 .frame(maxWidth: Reading.measure, alignment: .leading)
                 .onGeometryChange(for: CGFloat.self) { proxy in
                     proxy.size.width
@@ -45,6 +58,18 @@ struct ReaderView: View {
                 .background(theme.surface)
             }
             .background(theme.background)
+            .scrollPosition(id: $topBlock)
+            .onChange(of: topBlock) { _, newValue in
+                guard let newValue else { return }
+                saveTask?.cancel()
+                saveTask = Task {
+                    try? await Task.sleep(for: .milliseconds(500))
+                    guard !Task.isCancelled,
+                        let offset = PageText.offset(ofBlock: newValue, in: page.blocks)
+                    else { return }
+                    onPositionChange?(offset)
+                }
+            }
             .task(id: scrollTarget) {
                 guard let scrollTarget else { return }
                 // 等一帧，等布局出来再滚，否则 scrollTo 会落空
@@ -76,11 +101,35 @@ struct PageScreen: View {
     @Environment(AppModel.self) private var model
     @State private var page: Page?
     @State private var target: Int?
+    @State private var currentOffset = 0
 
     var body: some View {
         Group {
             if let page {
-                ReaderView(page: page, highlight: route.highlight, scrollTarget: target)
+                ReaderView(
+                    page: page, highlight: route.highlight, scrollTarget: target,
+                    onPositionChange: { offset in
+                        currentOffset = offset
+                        model.recordPosition(
+                            path: page.path, offset: offset,
+                            snippet: PageText.snippet(at: offset, in: page.blocks))
+                    }
+                )
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button {
+                            model.toggleBookmark(
+                                path: page.path, offset: currentOffset,
+                                title: page.title,
+                                snippet: PageText.snippet(at: currentOffset, in: page.blocks))
+                        } label: {
+                            Image(
+                                systemName: model.isBookmarked(
+                                    path: page.path, offset: currentOffset)
+                                    ? "bookmark.fill" : "bookmark")
+                        }
+                    }
+                }
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -92,12 +141,18 @@ struct PageScreen: View {
         let loaded = try? await model.page(path: route.path)
         page = loaded
         guard let loaded else { return }
-        if let index = route.blockIndex {
+        if let offset = route.offset {
+            target = PageText.blockIndex(forOffset: offset, in: loaded.blocks) ?? 0
+            currentOffset = offset
+        } else if let index = route.blockIndex {
             target = index
-        } else if let anchor = route.anchor {
-            target = loaded.blockIndex(forAnchor: anchor)
+            currentOffset = PageText.offset(ofBlock: index, in: loaded.blocks) ?? 0
+        } else if let anchor = route.anchor, let index = loaded.blockIndex(forAnchor: anchor) {
+            target = index
+            currentOffset = PageText.offset(ofBlock: index, in: loaded.blocks) ?? 0
         } else {
             target = nil
+            currentOffset = 0
         }
     }
 }

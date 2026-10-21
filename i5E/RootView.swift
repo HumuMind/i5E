@@ -83,12 +83,38 @@ private struct SearchField: View {
 }
 
 struct TOCTree: View {
+    @Environment(AppModel.self) private var model
+
     let nodes: [TOCNode]
 
     private var sections: [TOCSection] { TOCSectionBuilder.build(from: nodes) }
 
     var body: some View {
         List {
+            if !model.bookmarks.isEmpty {
+                Section("书签") {
+                    ForEach(model.bookmarks) { bookmark in
+                        Button {
+                            model.show(
+                                AppModel.Route(path: bookmark.path, offset: bookmark.offset))
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(bookmark.title).lineLimit(1)
+                                Text(bookmark.snippet)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .swipeActions {
+                            Button("删除", role: .destructive) {
+                                model.removeBookmark(bookmark)
+                            }
+                        }
+                    }
+                }
+            }
             ForEach(sections) { section in
                 Section {
                     ForEach(section.nodes) { node in

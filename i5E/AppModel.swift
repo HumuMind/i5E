@@ -25,9 +25,11 @@ final class AppModel {
     /// 一页的打开方式：路径 + 锚点 / 命中位置 / 高亮词。
     struct Route: Hashable {
         var path: String
-        var anchor: String?
-        var blockIndex: Int?
-        var highlight: String?
+        var anchor: String? = nil
+        var blockIndex: Int? = nil
+        var highlight: String? = nil
+        /// 正文字符偏移；自动恢复上次位置时用。
+        var offset: Int? = nil
     }
 
     /// 详情列的导航栈。
@@ -36,6 +38,10 @@ final class AppModel {
     private(set) var isSearching = false
 
     private var db: ContentDatabase?
+    private let store: ReadingStore = UserDefaultsReadingStore()
+    private(set) var bookmarks: [Bookmark] = []
+    /// 页面路径 → 从顶层到该页的标题链，用于显示"章节路径"。
+    private(set) var chapterPath: [String: [String]] = [:]
     private var searchTask: Task<Void, Never>?
 
     // MARK: - 启动
@@ -50,7 +56,16 @@ final class AppModel {
             }
             let database = try ContentDatabase(url: url)
             db = database
-            toc = try await database.tableOfContents()
+            let tree = try await database.tableOfContents()
+            toc = tree
+            chapterPath = Self.buildChapterPaths(tree.nodes)
+
+            bookmarks = store.bookmarks()
+            if let last = store.loadPosition() {
+                routes = [
+                    Route(path: last.path, offset: last.offset)
+                ]
+            }
             phase = .ready
         } catch {
             phase = .failed(String(describing: error))
@@ -63,6 +78,63 @@ final class AppModel {
 
     func show(_ route: Route) {
         routes = [route]
+    }
+
+    /// 页面所属的章节链，比如「玩家手册2024 › 第一章：进行游戏 › 玩家还是DM？」。
+    func pathTitles(for pagePath: String) -> [String] {
+        chapterPath[pagePath] ?? []
+    }
+
+    /// 记录阅读位置。滚动时高频调用，写 UserDefaults 很便宜，但仍然只在变化时写。
+    func recordPosition(path: String, offset: Int, snippet: String) {
+        let current = store.loadPosition()
+        if let current, current.path == path, abs(current.offset - offset) < 80 { return }
+        store.savePosition(
+            ReadingPosition(path: path, offset: offset, snippet: snippet))
+    }
+
+    func refreshBookmarks() {
+        bookmarks = store.bookmarks()
+    }
+
+    func toggleBookmark(path: String, offset: Int, title: String, snippet: String) {
+        if let existing = store.bookmarks().first(where: {
+            $0.path == path && abs($0.offset - offset) < 200
+        }) {
+            store.remove(id: existing.id)
+        } else {
+            store.add(
+                Bookmark(
+                    path: path, offset: offset, title: title.isEmpty ? path : title,
+                    snippet: snippet))
+        }
+        refreshBookmarks()
+    }
+
+    func removeBookmark(_ bookmark: Bookmark) {
+        store.remove(id: bookmark.id)
+        refreshBookmarks()
+    }
+
+    func isBookmarked(path: String, offset: Int) -> Bool {
+        store.isBookmarked(path: path, offset: offset)
+    }
+
+    /// 把目录树摊平成"页面路径 → 标题链"。
+    private static func buildChapterPaths(_ nodes: [TOCNode]) -> [String: [String]] {
+        var map: [String: [String]] = [:]
+        func walk(_ list: [TOCNode], trail: [String]) {
+            for node in list {
+                let next = trail + [node.t]
+                if let url = node.u {
+                    let key = url.split(separator: "#").first.map(String.init) ?? url
+                    map[key] = next
+                }
+                walk(node.c, trail: next)
+            }
+        }
+        walk(nodes, trail: [])
+        return map
     }
 
     func push(_ route: Route) {
@@ -87,11 +159,7 @@ final class AppModel {
         }
         let (path, anchor) = Page.splitLink(raw)
         if let path, !path.isEmpty {
-            if let current = routes.last, current.path == path {
-                push(Route(path: path, anchor: anchor))
-            } else {
-                push(Route(path: path, anchor: anchor))
-            }
+            push(Route(path: path, anchor: anchor))
         } else if let anchor, let current = routes.last {
             push(Route(path: current.path, anchor: anchor))
         }

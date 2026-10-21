@@ -202,3 +202,46 @@ final class LinkTests: XCTestCase {
         XCTAssertNil(page.blockIndex(forAnchor: "Missing"))
     }
 }
+
+final class ReadingStoreTests: XCTestCase {
+    private func store() -> UserDefaultsReadingStore {
+        let suite = UserDefaults(suiteName: "i5e.tests.\(UUID().uuidString)")!
+        return UserDefaultsReadingStore(defaults: suite)
+    }
+
+    func testPositionRoundTrip() {
+        let s = store()
+        XCTAssertNil(s.loadPosition())
+        s.savePosition(ReadingPosition(path: "a/b.htm", offset: 1234, snippet: "开头几个字"))
+        let loaded = s.loadPosition()
+        XCTAssertEqual(loaded?.path, "a/b.htm")
+        XCTAssertEqual(loaded?.offset, 1234)
+    }
+
+    func testBookmarkAddRemoveAndNearDuplicate() {
+        let s = store()
+        s.add(Bookmark(path: "a.htm", offset: 100, title: "甲", snippet: "x"))
+        XCTAssertEqual(s.bookmarks().count, 1)
+        // 同一位置附近再加一次，应当替换而不是重复
+        s.add(Bookmark(path: "a.htm", offset: 150, title: "甲", snippet: "x"))
+        XCTAssertEqual(s.bookmarks().count, 1)
+        XCTAssertTrue(s.isBookmarked(path: "a.htm", offset: 120))
+
+        let first = s.bookmarks()[0]
+        s.remove(id: first.id)
+        XCTAssertTrue(s.bookmarks().isEmpty)
+    }
+
+    /// 位置偏移辅助：块序号与字符偏移可以互相对应
+    func testBlockOffsetRoundTrip() throws {
+        let json = """
+            [{"type":"h","level":2,"runs":[{"t":"标题"}]},
+             {"type":"p","runs":[{"t":"第一段"}]},
+             {"type":"p","runs":[{"t":"第二段"}]}]
+            """
+        let blocks = try JSONDecoder().decode([Block].self, from: Data(json.utf8))
+        let offset = try XCTUnwrap(PageText.offset(ofBlock: 2, in: blocks))
+        XCTAssertEqual(PageText.blockIndex(forOffset: offset, in: blocks), 2)
+        XCTAssertEqual(PageText.snippet(at: offset, in: blocks), "第二段")
+    }
+}
