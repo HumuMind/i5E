@@ -66,6 +66,56 @@ final class ContentKitTests: XCTestCase {
         XCTAssertTrue(0..<page.blocks.count ~= hit.blockIndex)
     }
 
+    // MARK: - 表格列宽
+
+    private func table(_ json: String) throws -> Block {
+        try JSONDecoder().decode(Block.self, from: Data(json.utf8))
+    }
+
+    /// 两列表：序号列应该被压到下限，描述列拿走大部分宽度
+    func testTwoColumnWidths() throws {
+        let block = try table(
+            """
+            {"type":"table","rows":[
+              {"cells":[{"blocks":[{"type":"p","runs":[{"t":"1d6"}]}]},
+                        {"blocks":[{"type":"p","runs":[{"t":"霜巨人的躯体，配以食人魔的头颅"}]}]}]},
+              {"cells":[{"blocks":[{"type":"p","runs":[{"t":"2"}]}]},
+                        {"blocks":[{"type":"p","runs":[{"t":"石巨人下半身配巨魔上半身"}]}]}]}
+            ]}
+            """)
+        let widths = TableLayoutCalculator.widths(block, fontSize: 19, available: 720)
+        XCTAssertEqual(widths.count, 2)
+        XCTAssertLessThan(widths[0], widths[1] / 3)
+        XCTAssertLessThanOrEqual(widths.reduce(0, +), 720.5)
+    }
+
+    /// 14 列表：每列都不低于下限，总和不超过可用宽度
+    func testManyColumnWidths() throws {
+        let cells = (0..<14).map { "{\"blocks\":[{\"type\":\"p\",\"runs\":[{\"t\":\"力量\($0)\"}]}]}" }
+        let row = "{\"cells\":[" + cells.joined(separator: ",") + "]}"
+        let block = try table("{\"type\":\"table\",\"rows\":[\(row)]}")
+        let widths = TableLayoutCalculator.widths(block, fontSize: 13, available: 720)
+        XCTAssertEqual(widths.count, 14)
+        let floor =
+            CGFloat(TableLayoutCalculator.minUnits) * 13 / 2
+            + TableLayoutCalculator.horizontalPadding
+        XCTAssertTrue(widths.allSatisfy { $0 >= floor - 0.5 })
+        XCTAssertLessThanOrEqual(widths.reduce(0, +), 720.5)
+    }
+
+    /// 窄表保持自然宽度，不铺满
+    func testNarrowTableKeepsNaturalWidth() throws {
+        let block = try table(
+            """
+            {"type":"table","rows":[{"cells":[
+              {"blocks":[{"type":"p","runs":[{"t":"AC"}]}]},
+              {"blocks":[{"type":"p","runs":[{"t":"17"}]}]}
+            ]}]}
+            """)
+        let widths = TableLayoutCalculator.widths(block, fontSize: 13, available: 720)
+        XCTAssertLessThan(widths.reduce(0, +), 200)
+    }
+
     func testQueryBuilding() {
         XCTAssertEqual(SearchQuery.matchExpression(for: "龙"), "\"龙\"")
         XCTAssertEqual(SearchQuery.matchExpression(for: "火球"), "\"火球\"")

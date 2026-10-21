@@ -16,16 +16,26 @@ struct ReaderView: View {
 
     private var focus: AppModel.Focus? { model.focus }
 
+    /// 阅读区实际宽度，表格按它算列宽（窄屏时小于版心）。
+    @State private var contentWidth: CGFloat = Reading.measure
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(page.blocks.enumerated()), id: \.offset) { index, block in
-                        BlockView(block: block, highlight: focus?.query)
-                            .id(index)
+                        BlockView(
+                            block: block, highlight: focus?.query, availableWidth: contentWidth
+                        )
+                        .id(index)
                     }
                 }
                 .frame(maxWidth: Reading.measure, alignment: .leading)
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.width
+                } action: { width in
+                    contentWidth = width
+                }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 40)
                 .frame(maxWidth: .infinity)

@@ -44,6 +44,9 @@ public struct TableCell: Decodable, Sendable, Hashable {
     public var header: Bool?
     public var bg: String?
     public var cls: [String]?
+
+    /// 单元格纯文本，用于估宽。
+    public var plainText: String { blocks.map(\.deepPlainText).joined() }
 }
 
 public struct TableRow: Decodable, Sendable, Hashable {
@@ -69,6 +72,21 @@ public struct Block: Decodable, Sendable, Hashable {
 
     public var runsOrEmpty: [Run] { runs ?? [] }
     public var blocksOrEmpty: [Block] { blocks ?? [] }
+
+    /// 递归拼接本块及嵌套块的文本，用于表格估宽。
+    public var deepPlainText: String {
+        var parts: [String] = []
+        if !plainText.isEmpty { parts.append(plainText) }
+        for child in blocksOrEmpty { parts.append(child.deepPlainText) }
+        for item in items ?? [] {
+            parts.append(item.runs.compactMap(\.t).joined())
+            for child in item.blocks { parts.append(child.deepPlainText) }
+        }
+        for row in rows ?? [] {
+            for cell in row.cells { parts.append(cell.plainText) }
+        }
+        return parts.joined()
+    }
 
     /// 块级纯文本，顺序与 Tools/content/model.py 的 blocks_text 一致。
     public var plainText: String {

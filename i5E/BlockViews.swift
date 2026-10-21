@@ -5,6 +5,7 @@ import ContentKit
 struct BlockView: View {
     let block: Block
     var highlight: String?
+    var availableWidth: CGFloat = Reading.measure
 
     var body: some View {
         switch block.type {
@@ -18,15 +19,15 @@ struct BlockView: View {
                 .padding(.leading, 24)
                 .padding(.bottom, Reading.bodySize * 0.6)
         case "list":
-            ListBlockView(block: block, highlight: highlight)
+            ListBlockView(block: block, highlight: highlight, availableWidth: availableWidth)
         case "table":
-            TableBlockView(block: block)
+            TableBlockView(block: block, availableWidth: availableWidth)
         case "quote":
             HStack(alignment: .top, spacing: 12) {
                 Rectangle().fill(.quaternary).frame(width: 3)
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(block.blocksOrEmpty.enumerated()), id: \.offset) { _, inner in
-                        BlockView(block: inner, highlight: highlight)
+                        BlockView(block: inner, highlight: highlight, availableWidth: availableWidth)
                     }
                 }
             }
@@ -35,7 +36,7 @@ struct BlockView: View {
         case "div":
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(block.blocksOrEmpty.enumerated()), id: \.offset) { _, inner in
-                    BlockView(block: inner, highlight: highlight)
+                    BlockView(block: inner, highlight: highlight, availableWidth: availableWidth)
                 }
             }
         case "pre":
@@ -80,6 +81,7 @@ struct BlockView: View {
 private struct ListBlockView: View {
     let block: Block
     var highlight: String?
+    var availableWidth: CGFloat = Reading.measure
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -99,7 +101,7 @@ private struct ListBlockView: View {
                             .lineSpacing(Reading.lineSpacing)
                         }
                         ForEach(Array(item.blocks.enumerated()), id: \.offset) { _, inner in
-                            BlockView(block: inner, highlight: highlight)
+                            BlockView(block: inner, highlight: highlight, availableWidth: availableWidth)
                         }
                     }
                 }
@@ -116,14 +118,13 @@ private struct ListBlockView: View {
 
 // MARK: - 表格
 
-/// 简化实现：等宽列、不做合并单元格、字号按列数降档。
-/// 完整规则见 0011（19→16→13 阶梯、fixed 布局、超宽换行）。
+/// 表格：列宽按内容估算、自然宽度不铺满、支持 colspan、行级懒加载。
+/// rowspan 不支持（全库 40 个表），合并格渲染在首行，被覆盖的格子留空。
 private struct TableBlockView: View {
     let block: Block
+    var availableWidth: CGFloat
 
-    private var columnCount: Int {
-        (block.rows ?? []).map { $0.cells.reduce(0) { $0 + ($1.colspan ?? 1) } }.max() ?? 0
-    }
+    private var columnCount: Int { TableLayoutCalculator.columnCount(block) }
 
     private var fontSize: CGFloat {
         switch columnCount {
@@ -133,38 +134,53 @@ private struct TableBlockView: View {
         }
     }
 
-    var body: some View {
-        VStack(spacing: 0) {
-            ForEach(Array((block.rows ?? []).enumerated()), id: \.offset) { _, row in
-                HStack(spacing: 0) {
-                    ForEach(Array(row.cells.enumerated()), id: \.offset) { _, cell in
-                        cellView(cell)
-                    }
-                }
-            }
-        }
-        .background(Color(hex: "#ffffff") ?? .clear)
-        .overlay(Rectangle().stroke(.quaternary, lineWidth: 0.5))
-        .clipShape(.rect(cornerRadius: 4))
-        .padding(.vertical, 8)
-        .padding(.bottom, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
+    private var widths: [CGFloat] {
+        TableLayoutCalculator.widths(
+            block, fontSize: fontSize,
+            available: min(availableWidth, Reading.measure) - TableLayoutCalculator.horizontalPadding)
     }
 
-    private func cellView(_ cell: TableCell) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+    private var totalWidth: CGFloat { widths.reduce(0, +) }
+
+    var body: some View {
+        LazyVStack(spacing: 0) {
+            ForEach(Array((block.rows ?? []).enumerated()), id: \.offset) { _, row in
+                HStack(spacing: 0) {
+                    ForEach(Array(row.cells.enumerated()), id: \.offset) { index, cell in
+                        cellView(cell, at: index)
+                    }
+                }
+                .frame(width: totalWidth, alignment: .leading)
+                .background(Color(hex: row.bg ?? "") ?? .clear)
+            }
+        }
+        .overlay(Rectangle().stroke(.quaternary, lineWidth: 0.5))
+        .clipShape(.rect(cornerRadius: 4))
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.vertical, 10)
+        .padding(.bottom, 12)
+    }
+
+    private func width(at index: Int, span: Int) -> CGFloat {
+        let upper = min(widths.count, index + span)
+        guard index < upper else { return widths.last ?? 0 }
+        return widths[index..<upper].reduce(0, +)
+    }
+
+    private func cellView(_ cell: TableCell, at index: Int) -> some View {
+        let span = max(1, cell.colspan ?? 1)
+        return VStack(alignment: .leading, spacing: 3) {
             ForEach(Array(cell.blocks.enumerated()), id: \.offset) { _, inner in
                 Text(
                     AttributedText.make(
-                        inner.runsOrEmpty, size: fontSize,
-                        bold: cell.header == true)
+                        inner.runsOrEmpty, size: fontSize, bold: cell.header == true)
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 5)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(width: width(at: index, span: span), alignment: .topLeading)
         .background(Color(hex: cell.bg ?? "") ?? .clear)
         .overlay(Rectangle().stroke(.quaternary, lineWidth: 0.5))
     }
