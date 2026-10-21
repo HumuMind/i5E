@@ -11,6 +11,9 @@ final class SmokeTests: XCTestCase {
     @MainActor
     func testLaunchAndSearch() throws {
         let app = XCUIApplication()
+        // 先结束可能残留的实例：macOS 上另一个实例占着前台时，
+        // 新实例的窗口可能拿不到可查询的层次结构。
+        app.terminate()
         app.launch()
 
         // 侧栏搜索框出现 = 内容库打开、目录加载完成

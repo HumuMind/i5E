@@ -1,9 +1,15 @@
 #!/bin/sh
-# 跑 UI 冒烟测试。默认在 macOS 上跑；也可以
+# 跑 UI 冒烟测试。**会抢占前台并自动开关 App，日常不要跑**。
+#
+# 目前 scheme 里已经把测试标为 skipped，不会随 xcodebuild test 跑；
+# 这个脚本是手动入口。默认在 macOS 上跑；也可以
 #   DESTINATION='platform=iOS Simulator,name=iPhone 17' ./Scripts/uitest.sh
 #
-# 注意：macOS 上必须允许本地 adhoc 签名（CODE_SIGNING_ALLOWED=YES），
-# 否则测试 runner 会被系统直接 kill（"Test crashed with signal kill"）。
+# 两个已知坑：
+# 1. macOS 上必须允许本地 adhoc 签名（CODE_SIGNING_ALLOWED=YES），
+#    否则测试 runner 会被系统直接 kill（"Test crashed with signal kill"）。
+# 2. 如果 App 已经被手动打开（哪怕是旧 bundle id 的版本），测试可能
+#    拿不到窗口层次结构而超时。用例里已经先 terminate()，仍失败时手动关掉 App。
 set -eu
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)

@@ -56,4 +56,5 @@
 | I20 | 包体 | [0027](decisions/0027-bundle-size.md) · 已定（48 MB，预算 80 MB） |
 | I21 | 测试策略 | [0028](decisions/0028-testing.md) · 已定（三层；UI 起步） |
 | I22 | App 图标 | [0029](decisions/0029-app-icon.md) · 已定（书 + 5E，三套变体） |
+| I23 | 标识与版本 | [0030](decisions/0030-identity-and-versioning.md) · 已定（`io.github.kusa.i5e`） |
 

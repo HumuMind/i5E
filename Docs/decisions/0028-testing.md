@@ -36,6 +36,18 @@ Test crashed with signal kill before establishing connection
 - 标识符集中在 `i5EUITests/SmokeTests.swift` 的 `AccessibilityID` 里，与 App 侧字符串保持一致，改的时候两边一起改。
 - 等待统一用 `waitForExistence(timeout:)`，不用 `sleep`。
 
+## 补记：UI 测试已暂停（2026-10-21）
+
+UI 测试会启动 App、抢前台、结束后再关掉，日常使用电脑时很打扰，因此**在 scheme 里标为 skipped**：
+
+- `xcodebuild test` 与 Xcode 的 Test 动作都不会再跑它
+- 需要时手动执行 `./Scripts/uitest.sh`，它会明确提示会抢占前台
+- 代码和 target 都保留，重新启用只需把 scheme 里的 `skipped` 改回 `NO`
+
+暂停时它还有一处不稳定：如果 App 已经被手动打开（哪怕是旧 bundle id 的版本），测试可能拿不到窗口层次结构而超时。用例里加了 `terminate()` 也无济于事——这属于 macOS 自动化与前台窗口的老问题，等真正要用时再解决。
+
+现在 `./Scripts/test.sh`（数据层 30 个测试）仍是唯一的自动化回归入口，秒级、不打扰。
+
 ## 重审条件
 
 - UI 定稿后：补快照测试，覆盖阅读页、参考卡片、深色模式。
