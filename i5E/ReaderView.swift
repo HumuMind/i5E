@@ -105,7 +105,9 @@ struct PageScreen: View {
 
     var body: some View {
         Group {
-            if let page {
+            if let page, let reference = ReferenceTableExtractor.extract(from: page) {
+                ReferenceView(page: page, table: reference)
+            } else if let page {
                 ReaderView(
                     page: page, highlight: route.highlight, scrollTarget: target,
                     onPositionChange: { offset in

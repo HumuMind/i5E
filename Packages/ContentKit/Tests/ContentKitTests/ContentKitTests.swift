@@ -245,3 +245,43 @@ final class ReadingStoreTests: XCTestCase {
         XCTAssertEqual(PageText.snippet(at: offset, in: blocks), "第二段")
     }
 }
+
+final class ReferenceTableTests: XCTestCase {
+    private func database() throws -> ContentDatabase {
+        guard let path = ProcessInfo.processInfo.environment["CONTENT_DB"] else {
+            throw XCTSkip("未设置 CONTENT_DB")
+        }
+        return try ContentDatabase(url: URL(fileURLWithPath: path))
+    }
+
+    /// 万器大全：497 行、7 列、第一行是表头、首列带链接
+    func testExtractsBigTable() async throws {
+        let db = try database()
+        let page = try await db.page(path: "速查/5E万器大全.htm")
+        let unwrapped = try XCTUnwrap(page)
+        let table = try XCTUnwrap(ReferenceTableExtractor.extract(from: unwrapped))
+        XCTAssertGreaterThan(table.rows.count, 400)
+        XCTAssertEqual(table.headers.first, "物品名")
+        XCTAssertEqual(table.columnCount, 7)
+        XCTAssertNotNil(table.rows.first?.first?.link)
+    }
+
+    /// 普通文档页不该被误判
+    func testOrdinaryPageHasNoReferenceTable() async throws {
+        let db = try database()
+        let page = try await db.page(path: "玩家手册2024/进行游戏/游戏规律.htm")
+        let unwrapped = try XCTUnwrap(page)
+        XCTAssertNil(ReferenceTableExtractor.extract(from: unwrapped))
+    }
+
+    /// 分面：低基数列能生成筛选项，名称列不生成
+    func testFacets() async throws {
+        let db = try database()
+        let page = try await db.page(path: "速查/5E万器大全.htm")
+        let table = try XCTUnwrap(ReferenceTableExtractor.extract(from: try XCTUnwrap(page)))
+        let rarities = table.facets(column: 1)
+        XCTAssertFalse(rarities.isEmpty)
+        XCTAssertTrue(rarities.contains("珍稀"))
+        XCTAssertTrue(table.facets(column: 0).isEmpty, "名称列取值太多，不该做分面")
+    }
+}
