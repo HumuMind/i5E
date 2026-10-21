@@ -61,6 +61,15 @@ struct BlockView: View {
         }
     }
 
+    /// 上游 `style.css` 给标题规定的颜色。数据里只有内联色，
+    /// 靠样式表来的这一层要在这里补上（见 0017 补记）。
+    private var headingDefaultColor: Color? {
+        guard let hex = SourceStyle.headingColorHex(level: block.level ?? 2),
+            let rgb = RGB(hexOrRGB: hex)
+        else { return nil }
+        return theme.adjusted(rgb)
+    }
+
     private var heading: some View {
         let level = block.level ?? 2
         let (scale, weight): (CGFloat, Font.Weight) =
@@ -75,7 +84,8 @@ struct BlockView: View {
         return Text(
             AttributedText.make(
                 block.runsOrEmpty, size: Reading.bodySize * scale,
-                bold: weight == .bold, highlight: highlight, theme: theme)
+                bold: weight == .bold, highlight: highlight,
+                theme: theme, defaultColor: headingDefaultColor)
         )
         .lineSpacing(Reading.bodySize * scale * 0.4)
         .padding(.top, level <= 2 ? 26 : 18)
@@ -314,7 +324,8 @@ enum AttributedText {
     /// 字号一律用传入值——源页的绝对字号（8–22pt）在阅读模式里不采用。
     static func make(
         _ runs: [Run], size: CGFloat, bold: Bool = false,
-        highlight: String? = nil, theme: ReadingTheme = .light
+        highlight: String? = nil, theme: ReadingTheme = .light,
+        defaultColor: Color? = nil
     ) -> AttributedString {
         var result = AttributedString()
         for run in runs {
@@ -322,7 +333,8 @@ enum AttributedText {
             let weight: Font.Weight = (bold || run.b == 1) ? .bold : .regular
             var font = Font.custom("Songti SC", size: size).weight(weight)
             if run.i == 1 { font = font.italic() }
-            let color: Color = run.c.flatMap { RGB(hexOrRGB: $0) }.map(theme.adjusted) ?? theme.text
+            let color: Color = resolvedColor(
+                for: run, theme: theme, defaultColor: defaultColor)
 
             for (segment, hit) in split(text, by: highlight) {
                 var piece = AttributedString(segment)
@@ -335,6 +347,21 @@ enum AttributedText {
             }
         }
         return result
+    }
+
+    /// 内联色优先；没有就按上游样式表的语义（术语/法术/怪物）补默认色；再退到正文色。
+    static func resolvedColor(
+        for run: Run, theme: ReadingTheme, defaultColor: Color? = nil
+    ) -> Color {
+        if let hex = run.c, let rgb = RGB(hexOrRGB: hex) {
+            return theme.adjusted(rgb)
+        }
+        let semantic = SourceStyle.inlineColorHex(
+            underlined: run.u == 1, italic: run.i == 1, bold: run.b == 1)
+        if let semantic, let rgb = RGB(hexOrRGB: semantic) {
+            return theme.adjusted(rgb)
+        }
+        return defaultColor ?? theme.text
     }
 
     /// 把文本按查询词切成 (片段, 是否命中)；没有高亮词时返回整段。

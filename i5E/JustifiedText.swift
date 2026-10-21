@@ -65,10 +65,7 @@ import ContentKit
         }
 
         private static func color(for run: Run, theme: ReadingTheme) -> UIColor {
-            guard let hex = run.c, let rgb = RGB(hexOrRGB: hex) else {
-                return UIColor(theme.text)
-            }
-            return UIColor(theme.adjusted(rgb))
+            UIColor(AttributedText.resolvedColor(for: run, theme: theme))
         }
     }
 

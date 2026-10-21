@@ -155,3 +155,20 @@ final class ContentKitTests: XCTestCase {
         XCTAssertNil(SearchQuery.matchExpression(for: "   "))
     }
 }
+
+final class SourceStyleTests: XCTestCase {
+    func testHeadingColorsMatchStylesheet() {
+        XCTAssertEqual(SourceStyle.headingColorHex(level: 1), "#800000")
+        XCTAssertEqual(SourceStyle.headingColorHex(level: 3), "#800000")
+        XCTAssertEqual(SourceStyle.headingColorHex(level: 4), "#704cd9")
+        XCTAssertEqual(SourceStyle.headingColorHex(level: 6), "#0f5cbc")
+        XCTAssertNil(SourceStyle.headingColorHex(level: 5))
+    }
+
+    func testInlineSemanticColors() {
+        XCTAssertEqual(SourceStyle.inlineColorHex(underlined: true, italic: false, bold: false), "#008000")
+        XCTAssertEqual(SourceStyle.inlineColorHex(underlined: true, italic: true, bold: false), "#704cd9")
+        XCTAssertEqual(SourceStyle.inlineColorHex(underlined: true, italic: false, bold: true), "#ee3300")
+        XCTAssertNil(SourceStyle.inlineColorHex(underlined: false, italic: true, bold: false))
+    }
+}
