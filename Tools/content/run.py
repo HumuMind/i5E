@@ -529,6 +529,7 @@ def main() -> int:
         con.close()
         img = db.get("images") or {}
         print(f"图片打包: {img.get('files', 0)} 个 / {img.get('bytes', 0) / 1048576:.1f} MB"
+              + (f" · 降采样 {img.get('downscaled', 0)} 张" if img.get("downscaled") else "")
               + (f" · 重名冲突 {img['collisions']}" if img.get("collisions") else ""), flush=True)
         print(f"C10 检索索引: {'通过' if c10r['pass'] else c10r} "
               f"({len(SEARCH_PROBES)} 条查询 · 库 {db['bytes'] / 1048576:.1f} MB · "

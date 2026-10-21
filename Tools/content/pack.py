@@ -76,11 +76,37 @@ def flat_image_name(relative: str) -> str:
     return relative.replace("/", "_")
 
 
+# 显示宽度最多 720pt，按 2 倍屏留到 1600px 足够；再宽只是浪费包体和内存。
+MAX_IMAGE_WIDTH = 1600
+
+
+def _downscale(path: Path, max_width: int = MAX_IMAGE_WIDTH) -> bool:
+    """超宽图片等比缩到 max_width。没有 Pillow 就跳过，不算失败。"""
+    try:
+        from PIL import Image
+    except ImportError:
+        return False
+    try:
+        with Image.open(path) as image:
+            if image.width <= max_width:
+                return False
+            height = round(image.height * max_width / image.width)
+            resized = image.resize((max_width, height), Image.LANCZOS)
+            if path.suffix.lower() == ".png":
+                resized.save(path, optimize=True)
+            else:
+                resized.convert("RGB").save(path, quality=88, optimize=True)
+            return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def copy_images(records: list[dict], image_root: Path, dest: Path) -> dict:
     used = sorted({p for r in records for p in (r.get("_check", {}).get("images_used") or {})})
     dest.mkdir(parents=True, exist_ok=True)
     seen: dict[str, str] = {}
     collisions = []
+    downscaled = 0
     total = 0
     for relative in used:
         name = flat_image_name(relative)
@@ -91,8 +117,11 @@ def copy_images(records: list[dict], image_root: Path, dest: Path) -> dict:
         target = dest / name
         if not target.exists():
             shutil.copy2(image_root / relative, target)
+            if _downscale(target):
+                downscaled += 1
         total += target.stat().st_size
-    return {"files": len(seen), "bytes": total, "collisions": collisions}
+    return {"files": len(seen), "bytes": total, "collisions": collisions,
+            "downscaled": downscaled}
 
 
 def build(records: list[dict], toc: dict, info: dict, out_path: Path,

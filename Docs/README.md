@@ -53,4 +53,5 @@
 | I17 | 性能预算 | [0024](decisions/0024-performance.md) · 已定（五项预算 + 打点） |
 | I18 | 分发与许可 | [0025](decisions/0025-license-distribution.md) · 已定（App Store；代码 MIT） |
 | I19 | 内容更新 | [0026](decisions/0026-offline-updates.md) · 已定（随 App 发版，不联网） |
+| I20 | 包体 | [0027](decisions/0027-bundle-size.md) · 已定（48 MB，预算 80 MB） |
 
