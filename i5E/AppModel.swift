@@ -57,9 +57,13 @@ final class AppModel {
                 phase = .failed("内容库 content.db 没有打进应用包")
                 return
             }
-            let database = try ContentDatabase(url: url)
+            let database = try await Signpost.measure("openDatabase") {
+                try ContentDatabase(url: url)
+            }
             db = database
-            let tree = try await database.tableOfContents()
+            let tree = try await Signpost.measure("loadTOC") {
+                try await database.tableOfContents()
+            }
             toc = tree
             chapterPath = Self.buildChapterPaths(TOCSectionBuilder.build(from: tree.nodes))
 
@@ -217,7 +221,9 @@ final class AppModel {
         isSearching = true
         defer { isSearching = false }
         do {
-            let hits = try await db.search(text, limit: 80)
+            let hits = try await Signpost.measure("search") {
+                try await db.search(text, limit: 80)
+            }
             if !Task.isCancelled { results = hits }
         } catch {
             results = []

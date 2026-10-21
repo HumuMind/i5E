@@ -159,7 +159,9 @@ struct PageScreen: View {
 
     private func load() async {
         failed = false
-        let loaded = try? await model.page(path: route.path)
+        let loaded = try? await Signpost.measure("loadPage") {
+            try await model.page(path: route.path)
+        }
         page = loaded
         guard let loaded else {
             failed = true
