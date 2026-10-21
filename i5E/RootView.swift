@@ -195,15 +195,29 @@ struct SearchResultsView: View {
                             path: hit.path, blockIndex: hit.blockIndex, highlight: model.query))
                 } label: {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(hit.title.isEmpty ? hit.path : hit.title)
-                            .font(.headline)
+                        HStack(spacing: 6) {
+                            Text(hit.title.isEmpty ? hit.path : hit.title)
+                                .font(.headline)
+                            if model.isLegacy(path: hit.path) {
+                                Text("旧版")
+                                    .font(.caption2)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1)
+                                    .background(.quaternary, in: .capsule)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                         Text(hit.snippet)
                             .font(.callout)
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
-                        Text(hit.path)
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                        let trail = model.pathTitles(for: hit.path)
+                        if !trail.isEmpty {
+                            Text(trail.joined(separator: " › "))
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                        }
                     }
                     .padding(.vertical, 2)
                 }

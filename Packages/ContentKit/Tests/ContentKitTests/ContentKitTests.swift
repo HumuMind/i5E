@@ -285,3 +285,26 @@ final class ReferenceTableTests: XCTestCase {
         XCTAssertTrue(table.facets(column: 0).isEmpty, "名称列取值太多，不该做分面")
     }
 }
+
+final class EditionTests: XCTestCase {
+    private func database() throws -> ContentDatabase {
+        guard let path = ProcessInfo.processInfo.environment["CONTENT_DB"] else {
+            throw XCTSkip("未设置 CONTENT_DB")
+        }
+        return try ContentDatabase(url: URL(fileURLWithPath: path))
+    }
+
+    /// 2014 与 2024 的法术共用同一个锚点 id，这是版本标注存在的前提
+    func testSpellIDsOverlapAcrossEditions() async throws {
+        let db = try database()
+        func spellIDs(_ path: String) async throws -> Set<String> {
+            guard let page = try await db.page(path: path) else { return [] }
+            return Set(
+                page.blocks.filter { $0.type == "h" && $0.level == 4 }.compactMap(\.id))
+        }
+        let old = try await spellIDs("玩家手册/魔法/法术详述/三环.html")
+        let new = try await spellIDs("玩家手册2024/法术详述/三环.htm")
+        XCTAssertFalse(old.isEmpty)
+        XCTAssertFalse(new.intersection(old).isEmpty, "两版应共用大量 id")
+    }
+}

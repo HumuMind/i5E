@@ -58,7 +58,7 @@ final class AppModel {
             db = database
             let tree = try await database.tableOfContents()
             toc = tree
-            chapterPath = Self.buildChapterPaths(tree.nodes)
+            chapterPath = Self.buildChapterPaths(TOCSectionBuilder.build(from: tree.nodes))
 
             bookmarks = store.bookmarks()
             if let last = store.loadPosition() {
@@ -120,8 +120,16 @@ final class AppModel {
         store.isBookmarked(path: path, offset: offset)
     }
 
-    /// 把目录树摊平成"页面路径 → 标题链"。
-    private static func buildChapterPaths(_ nodes: [TOCNode]) -> [String: [String]] {
+    /// 页面是否属于「旧版内容」那一章。
+    func isLegacy(path: String) -> Bool {
+        chapterPath[path]?.first == "旧版内容"
+    }
+
+    /// 把目录摊平成"页面路径 → 标题链"。
+    ///
+    /// 章节名来自 `TOCSectionBuilder` 的分组（分隔节点变成章节标题），
+    /// 所以「旧版内容」会出现在链首——版本判定不需要另建映射表。
+    private static func buildChapterPaths(_ sections: [TOCSection]) -> [String: [String]] {
         var map: [String: [String]] = [:]
         func walk(_ list: [TOCNode], trail: [String]) {
             for node in list {
@@ -133,7 +141,9 @@ final class AppModel {
                 walk(node.c, trail: next)
             }
         }
-        walk(nodes, trail: [])
+        for section in sections {
+            walk(section.nodes, trail: section.isPinned ? [] : [section.title])
+        }
         return map
     }
 

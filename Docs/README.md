@@ -47,5 +47,6 @@
 | I11 | 交叉引用 | [0018](decisions/0018-cross-references.md) · 已定（压栈 + 锚点定位） |
 | I12 | 书签与进度 | [0019](decisions/0019-progress-bookmarks.md) · 已定（字符偏移 + UserDefaults） |
 | I13 | 速查页 | [0020](decisions/0020-reference-pages.md) · 已定（卡片 + 筛选，可切原版） |
+| I14 | 双版本 | [0021](decisions/0021-editions.md) · 已定（章节路径 + 旧版徽标） |
 | D4 | 追新机制 | 待排 |
 | D5 | 许可与分发 | 待排（不阻塞写代码，但别拖到首次提审） |
