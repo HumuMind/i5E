@@ -116,6 +116,38 @@ final class ContentKitTests: XCTestCase {
         XCTAssertLessThan(widths.reduce(0, +), 200)
     }
 
+    // MARK: - 对比度修复
+
+    /// 深色背景上的暗红标题应被提亮成偏红的颜色，且达标
+    func testDarkTitleTurnsLightRed() throws {
+        let background = try XCTUnwrap(RGB(hexOrRGB: "#17191c"))
+        let title = try XCTUnwrap(RGB(hexOrRGB: "#800000"))
+        XCTAssertLessThan(Contrast.ratio(title, background), Contrast.minimumRatio)
+
+        let repaired = Contrast.repair(title, on: background)
+        XCTAssertGreaterThanOrEqual(Contrast.ratio(repaired, background), Contrast.minimumRatio)
+        XCTAssertGreaterThan(repaired.r, repaired.g, "色相应该还在红侧")
+        XCTAssertGreaterThan(repaired.r, repaired.b)
+    }
+
+    /// 达标的颜色不该被改动
+    func testCompliantColorUnchanged() throws {
+        let background = try XCTUnwrap(RGB(hexOrRGB: "#ffffff"))
+        let text = try XCTUnwrap(RGB(hexOrRGB: "#242629"))
+        XCTAssertEqual(Contrast.repair(text, on: background), text)
+    }
+
+    /// 浅色底压暗后仍要能分辨出深浅关系
+    func testDarkenKeepsOrder() throws {
+        let surface = try XCTUnwrap(RGB(hexOrRGB: "#17191c"))
+        let light = try XCTUnwrap(RGB(hexOrRGB: "#eeeeee"))
+        let dark = try XCTUnwrap(RGB(hexOrRGB: "#d9d9d9"))
+        let a = Contrast.darken(light, toward: surface)
+        let b = Contrast.darken(dark, toward: surface)
+        XCTAssertGreaterThan(a.luminance, b.luminance)
+        XCTAssertLessThan(a.luminance, 0.2, "压暗后不应还是亮色")
+    }
+
     func testQueryBuilding() {
         XCTAssertEqual(SearchQuery.matchExpression(for: "龙"), "\"龙\"")
         XCTAssertEqual(SearchQuery.matchExpression(for: "火球"), "\"火球\"")

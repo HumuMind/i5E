@@ -7,6 +7,8 @@ struct BlockView: View {
     var highlight: String?
     var availableWidth: CGFloat = Reading.measure
 
+    @Environment(\.readingTheme) private var theme
+
     var body: some View {
         switch block.type {
         case "h":
@@ -18,9 +20,12 @@ struct BlockView: View {
             )
             .padding(.bottom, Reading.bodySize * 0.95)
         case "dd":
-            JustifiedText(runs: block.runsOrEmpty, fontSize: Reading.bodySize, highlight: highlight)
-                .padding(.leading, 24)
-                .padding(.bottom, Reading.bodySize * 0.6)
+            JustifiedText(
+                runs: block.runsOrEmpty, fontSize: Reading.bodySize,
+                highlight: highlight, theme: theme
+            )
+            .padding(.leading, 24)
+            .padding(.bottom, Reading.bodySize * 0.6)
         case "list":
             ListBlockView(block: block, highlight: highlight, availableWidth: availableWidth)
         case "table":
@@ -70,7 +75,7 @@ struct BlockView: View {
         return Text(
             AttributedText.make(
                 block.runsOrEmpty, size: Reading.bodySize * scale,
-                bold: weight == .bold, fallbackColor: .primary)
+                bold: weight == .bold, highlight: highlight, theme: theme)
         )
         .lineSpacing(Reading.bodySize * scale * 0.4)
         .padding(.top, level <= 2 ? 26 : 18)
@@ -88,6 +93,8 @@ private struct ParagraphView: View {
     let fontSize: CGFloat
     var highlight: String?
     var availableWidth: CGFloat
+
+    @Environment(\.readingTheme) private var theme
 
     private enum Piece {
         case text([Run])
@@ -117,7 +124,7 @@ private struct ParagraphView: View {
             ForEach(Array(pieces.enumerated()), id: \.offset) { _, piece in
                 switch piece {
                 case .text(let runs):
-                    JustifiedText(runs: runs, fontSize: fontSize, highlight: highlight)
+                    JustifiedText(runs: runs, fontSize: fontSize, highlight: highlight, theme: theme)
                 case .image(let run):
                     ContentImageView(run: run, maxWidth: availableWidth)
                 }
@@ -178,6 +185,8 @@ private struct ListBlockView: View {
     var highlight: String?
     var availableWidth: CGFloat = Reading.measure
 
+    @Environment(\.readingTheme) private var theme
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(Array((block.items ?? []).enumerated()), id: \.offset) { index, item in
@@ -219,6 +228,8 @@ private struct TableBlockView: View {
     let block: Block
     var availableWidth: CGFloat
 
+    @Environment(\.readingTheme) private var theme
+
     private var columnCount: Int { TableLayoutCalculator.columnCount(block) }
 
     private var fontSize: CGFloat {
@@ -246,14 +257,29 @@ private struct TableBlockView: View {
                     }
                 }
                 .frame(width: totalWidth, alignment: .leading)
-                .background(Color(hex: row.bg ?? "") ?? .clear)
+                .background(rowColor(row))
             }
         }
-        .overlay(Rectangle().stroke(.quaternary, lineWidth: 0.5))
+        .overlay(Rectangle().stroke(theme.border, lineWidth: 0.5))
         .clipShape(.rect(cornerRadius: 4))
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.vertical, 10)
         .padding(.bottom, 12)
+    }
+
+    private func rowColor(_ row: ContentKit.TableRow) -> Color {
+        guard let hex = row.bg else { return .clear }
+        return background(from: hex)
+    }
+
+    private func background(from hex: String) -> Color {
+        guard let rgb = RGB(hexOrRGB: hex) else { return .clear }
+        return theme.adjustedBackground(rgb)
+    }
+
+    private func cellBackground(_ cell: TableCell) -> Color {
+        guard let hex = cell.bg else { return .clear }
+        return background(from: hex)
     }
 
     private func width(at index: Int, span: Int) -> CGFloat {
@@ -268,7 +294,7 @@ private struct TableBlockView: View {
             ForEach(Array(cell.blocks.enumerated()), id: \.offset) { _, inner in
                 Text(
                     AttributedText.make(
-                        inner.runsOrEmpty, size: fontSize, bold: cell.header == true)
+                        inner.runsOrEmpty, size: fontSize, bold: cell.header == true, theme: theme)
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -277,7 +303,7 @@ private struct TableBlockView: View {
         .padding(.vertical, 5)
         .frame(width: width(at: index, span: span), alignment: .topLeading)
         .background(Color(hex: cell.bg ?? "") ?? .clear)
-        .overlay(Rectangle().stroke(.quaternary, lineWidth: 0.5))
+        .overlay(Rectangle().stroke(theme.border, lineWidth: 0.5))
     }
 }
 
@@ -288,7 +314,7 @@ enum AttributedText {
     /// 字号一律用传入值——源页的绝对字号（8–22pt）在阅读模式里不采用。
     static func make(
         _ runs: [Run], size: CGFloat, bold: Bool = false,
-        fallbackColor: Color = .primary, highlight: String? = nil
+        highlight: String? = nil, theme: ReadingTheme = .light
     ) -> AttributedString {
         var result = AttributedString()
         for run in runs {
@@ -296,7 +322,7 @@ enum AttributedText {
             let weight: Font.Weight = (bold || run.b == 1) ? .bold : .regular
             var font = Font.custom("Songti SC", size: size).weight(weight)
             if run.i == 1 { font = font.italic() }
-            let color = run.c.flatMap { Color(hex: $0) } ?? fallbackColor
+            let color: Color = run.c.flatMap { RGB(hexOrRGB: $0) }.map(theme.adjusted) ?? theme.text
 
             for (segment, hit) in split(text, by: highlight) {
                 var piece = AttributedString(segment)

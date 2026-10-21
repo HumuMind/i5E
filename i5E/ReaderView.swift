@@ -13,6 +13,9 @@ struct ReaderView: View {
     let page: Page
 
     @Environment(AppModel.self) private var model
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var theme: ReadingTheme { .resolve(colorScheme) }
 
     private var focus: AppModel.Focus? { model.focus }
 
@@ -39,7 +42,9 @@ struct ReaderView: View {
                 .padding(.horizontal, 24)
                 .padding(.vertical, 40)
                 .frame(maxWidth: .infinity)
+                .background(theme.surface)
             }
+            .background(theme.background)
             .task(id: focus) {
                 guard let focus else { return }
                 // 等一帧，等布局出来再滚，否则 scrollTo 会落空
@@ -49,6 +54,7 @@ struct ReaderView: View {
                 }
             }
         }
+        .environment(\.readingTheme, theme)
         .navigationTitle(page.title.isEmpty ? page.path : page.title)
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)

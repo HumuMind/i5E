@@ -13,15 +13,17 @@ import ContentKit
         let runs: [Run]
         let fontSize: CGFloat
         var highlight: String?
+        var theme: ReadingTheme = .light
 
         var body: some View {
             JustifiedLabel(
-                attributed: Self.attributed(runs: runs, fontSize: fontSize, highlight: highlight))
+                attributed: Self.attributed(
+                    runs: runs, fontSize: fontSize, highlight: highlight, theme: theme))
         }
 
-        static func attributed(runs: [Run], fontSize: CGFloat, highlight: String? = nil)
-            -> NSAttributedString
-        {
+        static func attributed(
+            runs: [Run], fontSize: CGFloat, highlight: String? = nil, theme: ReadingTheme = .light
+        ) -> NSAttributedString {
             let paragraph = NSMutableParagraphStyle()
             paragraph.alignment = .justified
             paragraph.lineSpacing = fontSize * (Reading.lineHeightMultiple - 1)
@@ -34,7 +36,7 @@ import ContentKit
                 var attributes: [NSAttributedString.Key: Any] = [
                     .font: font(for: run, size: fontSize),
                     .paragraphStyle: paragraph,
-                    .foregroundColor: color(for: run),
+                    .foregroundColor: color(for: run, theme: theme),
                 ]
                 if run.u == 1 { attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue }
                 if run.s == 1 { attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
@@ -62,9 +64,11 @@ import ContentKit
             return UIFont(descriptor: descriptor, size: size)
         }
 
-        private static func color(for run: Run) -> UIColor {
-            guard let hex = run.c, let color = Color(hex: hex) else { return .label }
-            return UIColor(color)
+        private static func color(for run: Run, theme: ReadingTheme) -> UIColor {
+            guard let hex = run.c, let rgb = RGB(hexOrRGB: hex) else {
+                return UIColor(theme.text)
+            }
+            return UIColor(theme.adjusted(rgb))
         }
     }
 
@@ -102,9 +106,10 @@ import ContentKit
         let runs: [Run]
         let fontSize: CGFloat
         var highlight: String?
+        var theme: ReadingTheme = .light
 
         var body: some View {
-            Text(AttributedText.make(runs, size: fontSize, highlight: highlight))
+            Text(AttributedText.make(runs, size: fontSize, highlight: highlight, theme: theme))
                 .lineSpacing(Reading.lineSpacing)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
