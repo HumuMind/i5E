@@ -55,7 +55,7 @@
 |---|---|---|
 | I17 ✅ | 性能预算 | 已定：[0024](../decisions/0024-performance.md) 五项预算 + signpost 打点 + 数据层基线 |
 | I18 ✅ | 分发与许可 | 已定：[0025](../decisions/0025-license-distribution.md) 目标 App Store，代码 MIT、内容沿用 GPL |
-| I19 | 内容更新 | D4：跟随上游的节奏与通道（整库替换 vs 增量） |
+| I19 ✅ | 内容更新 | 已定：[0026](../decisions/0026-offline-updates.md) 随 App 发版，完全离线 |
 | I20 | 包体 | 图片资源如何进包；32 MB 库 + 图片的总预算 |
 | I21 | 测试策略 | 快照测试、UI 测试、真机矩阵；内容侧已由 C1–C10 覆盖，App 侧要补什么 |
 
