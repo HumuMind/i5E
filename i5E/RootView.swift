@@ -28,7 +28,7 @@ struct SidebarView: View {
         }
         .navigationTitle("5E 不全书")
         #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.inline)
         #endif
     }
 
@@ -38,8 +38,9 @@ struct SidebarView: View {
         case .idle, .loading:
             ProgressView("打开内容库…").frame(maxWidth: .infinity, maxHeight: .infinity)
         case .failed(let message):
-            ContentUnavailableView("内容库打不开", systemImage: "exclamationmark.triangle",
-                                   description: Text(message))
+            ContentUnavailableView(
+                "内容库打不开", systemImage: "exclamationmark.triangle",
+                description: Text(message))
         case .ready:
             if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 TOCTree(nodes: model.toc?.nodes ?? [])
@@ -60,8 +61,8 @@ private struct SearchField: View {
             TextField("搜索正文", text: $text)
                 .textFieldStyle(.plain)
                 #if os(iOS)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
                 #endif
             if !text.isEmpty {
                 Button {
@@ -144,8 +145,9 @@ struct SearchResultsView: View {
 
     var body: some View {
         if model.results.isEmpty {
-            ContentUnavailableView("没有匹配", systemImage: "text.magnifyingglass",
-                                   description: Text("试试别的词，或换一个更短的查询"))
+            ContentUnavailableView(
+                "没有匹配", systemImage: "text.magnifyingglass",
+                description: Text("试试别的词，或换一个更短的查询"))
         } else {
             List(model.results) { hit in
                 Button {
@@ -179,8 +181,9 @@ struct DetailView: View {
         if let page = model.page {
             ReaderView(page: page)
         } else {
-            ContentUnavailableView("选一页开始读", systemImage: "book",
-                                   description: Text("左侧目录里挑一章，或者搜索正文"))
+            ContentUnavailableView(
+                "选一页开始读", systemImage: "book",
+                description: Text("左侧目录里挑一章，或者搜索正文"))
         }
     }
 }

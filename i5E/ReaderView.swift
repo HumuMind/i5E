@@ -3,8 +3,8 @@ import ContentKit
 
 /// 排版常量，来自 Docs/decisions/0011-typography.md。
 enum Reading {
-    static let measure: CGFloat = 720      // 版心
-    static let bodySize: CGFloat = 19      // 正文字号
+    static let measure: CGFloat = 720  // 版心
+    static let bodySize: CGFloat = 19  // 正文字号
     static let lineHeightMultiple: CGFloat = 1.8
     static var lineSpacing: CGFloat { bodySize * (lineHeightMultiple - 1) }
     static let fontSizeScale: CGFloat = 1.0
@@ -27,7 +27,7 @@ struct ReaderView: View {
         }
         .navigationTitle(page.title.isEmpty ? page.path : page.title)
         #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.inline)
         #endif
     }
 }

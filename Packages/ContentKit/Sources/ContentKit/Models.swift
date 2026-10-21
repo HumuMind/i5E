@@ -4,25 +4,27 @@ import Foundation
 /// 字段名短是刻意的：block 数量大，全名会让内容包明显变大。
 
 public struct Run: Decodable, Sendable, Hashable {
-    public var t: String?          // 文本
-    public var img: String?        // 图片路径
+    public var t: String?  // 文本
+    public var img: String?  // 图片路径
     public var alt: String?
-    public var b: Int?             // 粗体
-    public var i: Int?             // 斜体
-    public var u: Int?             // 下划线
-    public var s: Int?             // 删除线
+    public var b: Int?  // 粗体
+    public var i: Int?  // 斜体
+    public var u: Int?  // 下划线
+    public var s: Int?  // 删除线
     public var sup: Int?
     public var sub: Int?
     public var code: Int?
     public var href: String?
-    public var c: String?          // 颜色 #rrggbb
-    public var sz: Double?         // 字号（pt，源页值）
-    public var fa: String?         // 字体族 song/hei/kai/fang/sans/times/mono
+    public var c: String?  // 颜色 #rrggbb
+    public var sz: Double?  // 字号（pt，源页值）
+    public var fa: String?  // 字体族 song/hei/kai/fang/sans/times/mono
 
-    public init(t: String? = nil, img: String? = nil, alt: String? = nil,
-                b: Int? = nil, i: Int? = nil, u: Int? = nil, s: Int? = nil,
-                sup: Int? = nil, sub: Int? = nil, code: Int? = nil, href: String? = nil,
-                c: String? = nil, sz: Double? = nil, fa: String? = nil) {
+    public init(
+        t: String? = nil, img: String? = nil, alt: String? = nil,
+        b: Int? = nil, i: Int? = nil, u: Int? = nil, s: Int? = nil,
+        sup: Int? = nil, sub: Int? = nil, code: Int? = nil, href: String? = nil,
+        c: String? = nil, sz: Double? = nil, fa: String? = nil
+    ) {
         self.t = t; self.img = img; self.alt = alt
         self.b = b; self.i = i; self.u = u; self.s = s
         self.sup = sup; self.sub = sub; self.code = code; self.href = href
@@ -82,9 +84,9 @@ public struct Block: Decodable, Sendable, Hashable {
 }
 
 public struct TOCNode: Decodable, Sendable, Hashable, Identifiable {
-    public var t: String          // 标题
-    public var u: String?         // 页面路径
-    public var c: [TOCNode]       // 子节点
+    public var t: String  // 标题
+    public var u: String?  // 页面路径
+    public var c: [TOCNode]  // 子节点
     public var id: String { (u ?? "") + "|" + t + "|" + String(c.count) }
 }
 

@@ -1,0 +1,20 @@
+included:
+  - i5E
+  - Packages/ContentKit/Sources
+  - Packages/ContentKit/Tests
+excluded:
+  - build
+  - "**/.build"
+
+disabled_rules:
+  - todo
+  - trailing_comma
+
+line_length: 120
+type_body_length: 400
+file_length: 600
+identifier_name:
+  min_length: 1
+type_name:
+  excluded:
+    - i5EApp

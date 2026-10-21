@@ -38,21 +38,20 @@ iPad 是主要阅读场景；iPhone 适合随手查阅；Mac 适合大屏对照�
 ## 开发
 
 ```bash
-# 1. 从上游内容生成内容库（约 35 秒）
-python3 Tools/content/run.py build --pack
+python3 Tools/content/run.py build --pack   # 生成内容库（约 35 秒）
+./Scripts/stage-content.sh                  # 放进 App 资源目录（32 MB，不入库）
 
-# 2. 把内容库放进 App 资源目录（32 MB，不入库）
-./Scripts/stage-content.sh
-
-# 3. 数据层测试（需要一个构建好的内容库）
-cd Packages/ContentKit
-CONTENT_DB=../../build/pack/content.db swift test
+./Scripts/build.sh                          # 构建 App（iOS 模拟器）
+./Scripts/test.sh                           # 数据层测试（5 个，含跨语言正文哈希）
+./Scripts/lint.sh                           # swift-format + swiftlint
 ```
 
-然后打开 `i5E.xcodeproj`。最低 iOS / macOS 26。
+或者直接打开 `i5E.xcodeproj`。最低 iOS / macOS 26。
 
-现状：数据层（`Packages/ContentKit`）已实现并有测试覆盖；App 还没在 Xcode 里完整跑过一次，
-第一次打开若提示包依赖未解析，让 Xcode 重新解析即可。
+`Scripts/build.sh` 会把完整日志写到 `build/xcodebuild.log`，只把 error/warning 打到终端。
+
+注意：构建需要 xcodebuild 能写 `~/Library/Caches/org.swift.swiftpm`（SwiftPM 解析依赖用）。
+在受限沙箱里跑会被拒，普通终端没有这个问题。
 
 ## 参与贡献
 

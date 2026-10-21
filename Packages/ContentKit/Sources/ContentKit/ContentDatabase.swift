@@ -35,8 +35,9 @@ public final class ContentDatabase: Sendable {
 
     public func page(id: Int64) async throws -> Page? {
         try await dbQueue.read { db in
-            guard let row = try Row.fetchOne(
-                db, sql: "SELECT id, path, title, blocks FROM pages WHERE id = ?", arguments: [id])
+            guard
+                let row = try Row.fetchOne(
+                    db, sql: "SELECT id, path, title, blocks FROM pages WHERE id = ?", arguments: [id])
             else { return nil }
             return try Self.makePage(row)
         }
@@ -44,8 +45,9 @@ public final class ContentDatabase: Sendable {
 
     public func page(path: String) async throws -> Page? {
         try await dbQueue.read { db in
-            guard let row = try Row.fetchOne(
-                db, sql: "SELECT id, path, title, blocks FROM pages WHERE path = ?", arguments: [path])
+            guard
+                let row = try Row.fetchOne(
+                    db, sql: "SELECT id, path, title, blocks FROM pages WHERE path = ?", arguments: [path])
             else { return nil }
             return try Self.makePage(row)
         }
@@ -72,8 +74,9 @@ public final class ContentDatabase: Sendable {
 
             var hits: [SearchHit] = []
             for id in ids {
-                guard let row = try Row.fetchOne(
-                    db, sql: "SELECT id, path, title, blocks FROM pages WHERE id = ?", arguments: [id])
+                guard
+                    let row = try Row.fetchOne(
+                        db, sql: "SELECT id, path, title, blocks FROM pages WHERE id = ?", arguments: [id])
                 else { continue }
 
                 let blob: Data = row["blocks"]
@@ -82,16 +85,20 @@ public final class ContentDatabase: Sendable {
                 guard let range = text.lowercased().range(of: needle) else { continue }
 
                 let snippet = Self.snippet(text, around: range)
-                hits.append(SearchHit(pageID: row["id"], path: row["path"],
-                                      title: row["title"] ?? "", snippet: snippet))
+                hits.append(
+                    SearchHit(
+                        pageID: row["id"], path: row["path"],
+                        title: row["title"] ?? "", snippet: snippet))
                 if hits.count >= limit { break }
             }
             return hits
         }
     }
 
-    private static func snippet(_ text: String, around range: Range<String.Index>, radius: Int = 24) -> String {
-        let start = text.index(range.lowerBound, offsetBy: -radius, limitedBy: text.startIndex) ?? text.startIndex
+    private static func snippet(_ text: String, around range: Range<String.Index>, radius: Int = 24) -> String
+    {
+        let start =
+            text.index(range.lowerBound, offsetBy: -radius, limitedBy: text.startIndex) ?? text.startIndex
         let end = text.index(range.upperBound, offsetBy: radius, limitedBy: text.endIndex) ?? text.endIndex
         let body = text[start..<end].replacingOccurrences(of: "\n", with: " ")
         return (start > text.startIndex ? "…" : "") + body + (end < text.endIndex ? "…" : "")
@@ -105,8 +112,8 @@ public final class ContentDatabase: Sendable {
     /// 搜索的校验步骤会给出错误结果——这种 bug 很难靠肉眼发现，必须机器检查。
     public func verifyTextDigest() async throws -> Bool {
         guard let raw = try await metaValue("text_sha256"),
-              let data = raw.data(using: .utf8),
-              let expected = try? JSONDecoder().decode(String.self, from: data)
+            let data = raw.data(using: .utf8),
+            let expected = try? JSONDecoder().decode(String.self, from: data)
         else { return false }
 
         return try await dbQueue.read { db in

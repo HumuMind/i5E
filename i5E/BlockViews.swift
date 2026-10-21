@@ -53,20 +53,24 @@ struct BlockView: View {
 
     private var heading: some View {
         let level = block.level ?? 2
-        let (scale, weight): (CGFloat, Font.Weight) = switch level {
-        case 1: (1.6, .bold)
-        case 2: (1.35, .bold)
-        case 3: (1.2, .semibold)
-        case 4: (1.25, .semibold)   // 上游用 h4 做法术/怪物条目标题
-        case 5: (1.1, .semibold)
-        default: (1.0, .semibold)
-        }
-        return Text(AttributedText.make(block.runsOrEmpty, size: Reading.bodySize * scale,
-                                        bold: weight == .bold, fallbackColor: .primary))
-            .lineSpacing(Reading.bodySize * scale * 0.4)
-            .padding(.top, level <= 2 ? 26 : 18)
-            .padding(.bottom, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        let (scale, weight): (CGFloat, Font.Weight) =
+            switch level {
+            case 1: (1.6, .bold)
+            case 2: (1.35, .bold)
+            case 3: (1.2, .semibold)
+            case 4: (1.25, .semibold)  // 上游用 h4 做法术/怪物条目标题
+            case 5: (1.1, .semibold)
+            default: (1.0, .semibold)
+            }
+        return Text(
+            AttributedText.make(
+                block.runsOrEmpty, size: Reading.bodySize * scale,
+                bold: weight == .bold, fallbackColor: .primary)
+        )
+        .lineSpacing(Reading.bodySize * scale * 0.4)
+        .padding(.top, level <= 2 ? 26 : 18)
+        .padding(.bottom, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -144,9 +148,12 @@ private struct TableBlockView: View {
     private func cellView(_ cell: TableCell) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             ForEach(Array(cell.blocks.enumerated()), id: \.offset) { _, inner in
-                Text(AttributedText.make(inner.runsOrEmpty, size: fontSize,
-                                         bold: cell.header == true))
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(
+                    AttributedText.make(
+                        inner.runsOrEmpty, size: fontSize,
+                        bold: cell.header == true)
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(.horizontal, 6)
@@ -162,8 +169,10 @@ private struct TableBlockView: View {
 enum AttributedText {
     /// 把 run 序列转成 AttributedString。保留颜色、粗斜体、下划线。
     /// 字号一律用传入值——源页的绝对字号（8–22pt）在阅读模式里不采用。
-    static func make(_ runs: [Run], size: CGFloat, bold: Bool = false,
-                     fallbackColor: Color = .primary) -> AttributedString {
+    static func make(
+        _ runs: [Run], size: CGFloat, bold: Bool = false,
+        fallbackColor: Color = .primary
+    ) -> AttributedString {
         var result = AttributedString()
         for run in runs {
             guard let text = run.t, !text.isEmpty else { continue }
@@ -191,10 +200,11 @@ extension Color {
         var s = hex.trimmingCharacters(in: .whitespaces)
         if s.hasPrefix("#") { s.removeFirst() }
         guard s.count == 6, let value = UInt32(s, radix: 16) else { return nil }
-        self.init(.sRGB,
-                  red: Double((value >> 16) & 0xFF) / 255,
-                  green: Double((value >> 8) & 0xFF) / 255,
-                  blue: Double(value & 0xFF) / 255,
-                  opacity: 1)
+        self.init(
+            .sRGB,
+            red: Double((value >> 16) & 0xFF) / 255,
+            green: Double((value >> 8) & 0xFF) / 255,
+            blue: Double(value & 0xFF) / 255,
+            opacity: 1)
     }
 }

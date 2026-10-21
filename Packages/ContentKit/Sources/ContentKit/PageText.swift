@@ -20,7 +20,8 @@ public enum PageText {
     public static func of(_ blocks: [Block], separator: String = "\n") -> String {
         var parts: [String] = []
         walk(blocks, into: &parts)
-        return parts
+        return
+            parts
             .filter { !$0.trimmingCharacters(in: pythonWhitespace).isEmpty }
             .joined(separator: separator)
     }
