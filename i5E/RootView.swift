@@ -85,10 +85,23 @@ private struct SearchField: View {
 struct TOCTree: View {
     let nodes: [TOCNode]
 
+    private var sections: [TOCSection] { TOCSectionBuilder.build(from: nodes) }
+
     var body: some View {
         List {
-            ForEach(nodes) { node in
-                NodeRows(node: node, depth: 0)
+            ForEach(sections) { section in
+                Section {
+                    ForEach(section.nodes) { node in
+                        NodeRows(node: node, depth: 0)
+                    }
+                } header: {
+                    HStack(spacing: 6) {
+                        Text(section.title)
+                        if section.isPinned {
+                            Image(systemName: "pin").font(.caption2)
+                        }
+                    }
+                }
             }
         }
         .listStyle(.sidebar)
@@ -151,7 +164,7 @@ struct SearchResultsView: View {
         } else {
             List(model.results) { hit in
                 Button {
-                    Task { await model.open(path: hit.path) }
+                    Task { await model.open(path: hit.path, blockIndex: hit.blockIndex, query: model.query) }
                 } label: {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(hit.title.isEmpty ? hit.path : hit.title)

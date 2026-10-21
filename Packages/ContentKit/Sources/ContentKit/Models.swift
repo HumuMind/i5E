@@ -112,8 +112,14 @@ public struct SearchHit: Sendable, Identifiable, Hashable {
     public var path: String
     public var title: String
     public var snippet: String
+    /// 首处命中所在的顶层 block 序号，用于跳转定位。
+    public var blockIndex: Int
 
-    public init(pageID: Int64, path: String, title: String, snippet: String) {
-        self.pageID = pageID; self.path = path; self.title = title; self.snippet = snippet
+    public init(pageID: Int64, path: String, title: String, snippet: String, blockIndex: Int) {
+        self.pageID = pageID
+        self.path = path
+        self.title = title
+        self.snippet = snippet
+        self.blockIndex = blockIndex
     }
 }

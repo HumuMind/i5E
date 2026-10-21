@@ -15,7 +15,14 @@ final class AppModel {
     private(set) var toc: TOC?
     private(set) var page: Page?
     private(set) var results: [SearchHit] = []
+    /// 从搜索结果跳转时要滚动到的位置。
+    struct Focus: Hashable {
+        var blockIndex: Int
+        var query: String
+    }
+
     var selectedPath: String?
+    private(set) var focus: Focus?
     var query: String = ""
     private(set) var isSearching = false
 
@@ -43,11 +50,17 @@ final class AppModel {
 
     // MARK: - 阅读
 
-    func open(path: String) async {
+    func open(path: String, blockIndex: Int? = nil, query: String? = nil) async {
         guard let db else { return }
         selectedPath = path
         do {
-            page = try await db.page(path: path)
+            let fetched = try await db.page(path: path)
+            page = fetched
+            if let blockIndex, let query {
+                focus = Focus(blockIndex: blockIndex, query: query)
+            } else {
+                focus = nil
+            }
         } catch {
             phase = .failed(String(describing: error))
         }

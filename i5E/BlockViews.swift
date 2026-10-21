@@ -4,20 +4,21 @@ import ContentKit
 /// 单个 block 的渲染。表格与图片是简化实现，见文件末尾说明。
 struct BlockView: View {
     let block: Block
+    var highlight: String?
 
     var body: some View {
         switch block.type {
         case "h":
             heading
         case "p", "dt":
-            JustifiedText(runs: block.runsOrEmpty, fontSize: Reading.bodySize)
+            JustifiedText(runs: block.runsOrEmpty, fontSize: Reading.bodySize, highlight: highlight)
                 .padding(.bottom, Reading.bodySize * 0.95)
         case "dd":
-            JustifiedText(runs: block.runsOrEmpty, fontSize: Reading.bodySize)
+            JustifiedText(runs: block.runsOrEmpty, fontSize: Reading.bodySize, highlight: highlight)
                 .padding(.leading, 24)
                 .padding(.bottom, Reading.bodySize * 0.6)
         case "list":
-            ListBlockView(block: block)
+            ListBlockView(block: block, highlight: highlight)
         case "table":
             TableBlockView(block: block)
         case "quote":
@@ -25,7 +26,7 @@ struct BlockView: View {
                 Rectangle().fill(.quaternary).frame(width: 3)
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(block.blocksOrEmpty.enumerated()), id: \.offset) { _, inner in
-                        BlockView(block: inner)
+                        BlockView(block: inner, highlight: highlight)
                     }
                 }
             }
@@ -34,7 +35,7 @@ struct BlockView: View {
         case "div":
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(block.blocksOrEmpty.enumerated()), id: \.offset) { _, inner in
-                    BlockView(block: inner)
+                    BlockView(block: inner, highlight: highlight)
                 }
             }
         case "pre":
@@ -78,6 +79,7 @@ struct BlockView: View {
 
 private struct ListBlockView: View {
     let block: Block
+    var highlight: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -89,11 +91,15 @@ private struct ListBlockView: View {
                         .frame(minWidth: 18, alignment: .trailing)
                     VStack(alignment: .leading, spacing: 8) {
                         if !item.runs.isEmpty {
-                            Text(AttributedText.make(item.runs, size: Reading.bodySize))
-                                .lineSpacing(Reading.lineSpacing)
+                            Text(
+                                AttributedText.make(
+                                    item.runs, size: Reading.bodySize,
+                                    highlight: highlight)
+                            )
+                            .lineSpacing(Reading.lineSpacing)
                         }
                         ForEach(Array(item.blocks.enumerated()), id: \.offset) { _, inner in
-                            BlockView(block: inner)
+                            BlockView(block: inner, highlight: highlight)
                         }
                     }
                 }
@@ -171,26 +177,43 @@ enum AttributedText {
     /// 字号一律用传入值——源页的绝对字号（8–22pt）在阅读模式里不采用。
     static func make(
         _ runs: [Run], size: CGFloat, bold: Bool = false,
-        fallbackColor: Color = .primary
+        fallbackColor: Color = .primary, highlight: String? = nil
     ) -> AttributedString {
         var result = AttributedString()
         for run in runs {
             guard let text = run.t, !text.isEmpty else { continue }
-            var piece = AttributedString(text)
             let weight: Font.Weight = (bold || run.b == 1) ? .bold : .regular
             var font = Font.custom("Songti SC", size: size).weight(weight)
             if run.i == 1 { font = font.italic() }
-            piece.font = font
-            if let hex = run.c, let color = Color(hex: hex) {
+            let color = run.c.flatMap { Color(hex: $0) } ?? fallbackColor
+
+            for (segment, hit) in split(text, by: highlight) {
+                var piece = AttributedString(segment)
+                piece.font = font
                 piece.foregroundColor = color
-            } else {
-                piece.foregroundColor = fallbackColor
+                if hit { piece.backgroundColor = Color.accentColor.opacity(0.22) }
+                if run.u == 1 { piece.underlineStyle = .single }
+                if run.s == 1 { piece.strikethroughStyle = .single }
+                result.append(piece)
             }
-            if run.u == 1 { piece.underlineStyle = .single }
-            if run.s == 1 { piece.strikethroughStyle = .single }
-            result.append(piece)
         }
         return result
+    }
+
+    /// 把文本按查询词切成 (片段, 是否命中)；没有高亮词时返回整段。
+    static func split(_ text: String, by needle: String?) -> [(String, Bool)] {
+        guard let needle, !needle.isEmpty else { return [(text, false)] }
+        var parts: [(String, Bool)] = []
+        var rest = Substring(text)
+        while let range = rest.range(of: needle, options: .caseInsensitive) {
+            if range.lowerBound > rest.startIndex {
+                parts.append((String(rest[rest.startIndex..<range.lowerBound]), false))
+            }
+            parts.append((String(rest[range]), true))
+            rest = rest[range.upperBound...]
+        }
+        if !rest.isEmpty { parts.append((String(rest), false)) }
+        return parts
     }
 }
 

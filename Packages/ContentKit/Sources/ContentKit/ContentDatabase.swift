@@ -65,7 +65,7 @@ public final class ContentDatabase: Sendable {
     /// 三步走：FTS 召回候选 → 正文子串校验 → 够数即停。
     public func search(_ raw: String, limit: Int = 50) async throws -> [SearchHit] {
         guard let expression = SearchQuery.matchExpression(for: raw) else { return [] }
-        let needle = SearchQuery.normalized(raw)
+        let needle = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !needle.isEmpty else { return [] }
 
         return try await dbQueue.read { db in
@@ -82,13 +82,15 @@ public final class ContentDatabase: Sendable {
                 let blob: Data = row["blocks"]
                 let blocks = try JSONDecoder().decode([Block].self, from: try Zlib.inflate(blob))
                 let text = PageText.of(blocks)
-                guard let range = text.lowercased().range(of: needle) else { continue }
+                guard let range = text.range(of: needle, options: .caseInsensitive) else { continue }
 
+                let offset = text.distance(from: text.startIndex, to: range.lowerBound)
+                let blockIndex = PageText.blockIndex(forOffset: offset, in: blocks) ?? 0
                 let snippet = Self.snippet(text, around: range)
                 hits.append(
                     SearchHit(
                         pageID: row["id"], path: row["path"],
-                        title: row["title"] ?? "", snippet: snippet))
+                        title: row["title"] ?? "", snippet: snippet, blockIndex: blockIndex))
                 if hits.count >= limit { break }
             }
             return hits

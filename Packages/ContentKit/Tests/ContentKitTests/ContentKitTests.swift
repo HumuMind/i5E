@@ -40,6 +40,32 @@ final class ContentKitTests: XCTestCase {
         XCTAssertTrue(ok, "PageText 与构建侧不一致，搜索校验会出错")
     }
 
+    /// 目录分组：上游用分隔节点切章节，应该切出 6 个正文章节
+    func testTOCSections() async throws {
+        let db = try database()
+        let toc = try await db.tableOfContents()
+        let sections = TOCSectionBuilder.build(from: toc.nodes)
+        let titles = sections.map(\.title)
+        XCTAssertTrue(titles.contains("核心规则"))
+        XCTAssertTrue(titles.contains("战役设定"))
+        XCTAssertTrue(titles.contains("合作内容"))
+        XCTAssertEqual(sections.first?.title, "开始阅读")
+        XCTAssertEqual(sections.last?.title, "其他")
+        // 每一本 2014 版的书都还在某个章节里
+        let all = sections.flatMap(\.nodes).map(\.t)
+        XCTAssertTrue(all.contains("玩家手册2014（旧版）"))
+    }
+
+    /// 命中定位：搜到的 block 序号应该真的包含该词
+    func testSearchHitBlockIndex() async throws {
+        let db = try database()
+        let hits = try await db.search("火球", limit: 5)
+        let hit = try XCTUnwrap(hits.first)
+        let fetched = try await db.page(id: hit.pageID)
+        let page = try XCTUnwrap(fetched)
+        XCTAssertTrue(0..<page.blocks.count ~= hit.blockIndex)
+    }
+
     func testQueryBuilding() {
         XCTAssertEqual(SearchQuery.matchExpression(for: "龙"), "\"龙\"")
         XCTAssertEqual(SearchQuery.matchExpression(for: "火球"), "\"火球\"")

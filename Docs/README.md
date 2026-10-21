@@ -39,5 +39,7 @@
 | I3 | 工程结构 | [0010](decisions/0010-project-structure.md) · 已定（单 target + 本地包） |
 | I4 | 阅读排版 | [0011](decisions/0011-typography.md) · 已定（720 版心 / 19pt / 表格自适应） |
 | I5 | 阅读交互 | [0012](decisions/0012-scrolling.md) · 已定（只滚动，不分页） |
+| I6 | 目录首屏 | [0013](decisions/0013-toc-sections.md) · 已定（六个分组） |
+| I7 | 搜索界面 | [0014](decisions/0014-search-ui.md) · 已定（按页 + 跳到命中） |
 | D4 | 追新机制 | 待排 |
 | D5 | 许可与分发 | 待排（不阻塞写代码，但别拖到首次提审） |

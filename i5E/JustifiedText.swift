@@ -12,12 +12,16 @@ import ContentKit
     struct JustifiedText: View {
         let runs: [Run]
         let fontSize: CGFloat
+        var highlight: String?
 
         var body: some View {
-            JustifiedLabel(attributed: Self.attributed(runs: runs, fontSize: fontSize))
+            JustifiedLabel(
+                attributed: Self.attributed(runs: runs, fontSize: fontSize, highlight: highlight))
         }
 
-        static func attributed(runs: [Run], fontSize: CGFloat) -> NSAttributedString {
+        static func attributed(runs: [Run], fontSize: CGFloat, highlight: String? = nil)
+            -> NSAttributedString
+        {
             let paragraph = NSMutableParagraphStyle()
             paragraph.alignment = .justified
             paragraph.lineSpacing = fontSize * (Reading.lineHeightMultiple - 1)
@@ -34,7 +38,14 @@ import ContentKit
                 ]
                 if run.u == 1 { attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue }
                 if run.s == 1 { attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
-                result.append(NSAttributedString(string: text, attributes: attributes))
+
+                for (segment, hit) in AttributedText.split(text, by: highlight) {
+                    var pieceAttributes = attributes
+                    if hit {
+                        pieceAttributes[.backgroundColor] = UIColor.tintColor.withAlphaComponent(0.22)
+                    }
+                    result.append(NSAttributedString(string: segment, attributes: pieceAttributes))
+                }
             }
             return result
         }
@@ -90,9 +101,10 @@ import ContentKit
     struct JustifiedText: View {
         let runs: [Run]
         let fontSize: CGFloat
+        var highlight: String?
 
         var body: some View {
-            Text(AttributedText.make(runs, size: fontSize))
+            Text(AttributedText.make(runs, size: fontSize, highlight: highlight))
                 .lineSpacing(Reading.lineSpacing)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
