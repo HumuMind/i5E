@@ -39,6 +39,11 @@ struct SettingsView: View {
                     Text("内容来自 DND5e_chm，免费、离线、无账号。内容纠错请提交到上游项目。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                    LabeledContent("代码许可", value: "MIT")
+                    LabeledContent("内容授权", value: "GPL-3.0（沿用上游）")
+                    Text("文本与美术素材的著作权归 Wizards of the Coast 及相应译者所有。本项目非官方、非商业。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("设置")

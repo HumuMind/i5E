@@ -8,7 +8,7 @@
 
 ![Platform](https://img.shields.io/badge/platform-iPadOS%20%7C%20iOS%20%7C%20macOS-1f6feb?style=flat-square)
 ![Status](https://img.shields.io/badge/status-early%20development-orange?style=flat-square)
-![License](https://img.shields.io/badge/license-GPL--3.0-2ea44f?style=flat-square)
+![License](https://img.shields.io/badge/license-MIT%20%2F%20%E5%86%85%E5%AE%B9-GPL--3.0-2ea44f?style=flat-square)
 
 </div>
 
@@ -61,9 +61,14 @@ python3 Tools/content/run.py build --pack   # 生成内容库（约 35 秒）
 
 ## 许可与声明
 
-- 代码采用 **GPL-3.0**，与上游一致（`LICENSE` 随首个代码提交加入）。
-- 内容来自上游社区的整合与翻译，版权归 Wizards of the Coast 及相应译者/权利人所有。本项目免费、非商业，不主张内容版权，也不销售内容。
+**代码与内容分开授权**，详见 [NOTICE](NOTICE)：
+
+- **代码**（App、数据层、构建工具）：**MIT**，见 [LICENSE](LICENSE)。
+- **内容**（`DND5e_chm/` 及其派生的内容库、图片）：来自上游 [DND5e_chm](https://github.com/DND5eChm/DND5e_chm)（GPL-3.0），文本、翻译与美术素材的著作权归 Wizards of the Coast 及相应译者/权利人所有。本项目免费、非商业、不销售内容、不修改原文。
 - 本项目为非官方项目，与 Wizards of the Coast 无关联。
+
+这样区分的原因是：App 是独立实现的，只读取上游产出的内容文件，不链接上游代码；
+而内容本身的授权与权利不属于本项目可以处分的范围。
 
 ## 链接
 

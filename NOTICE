@@ -1,0 +1,17 @@
+i5E · 5E不全书
+==============
+
+本仓库包含两类内容，许可不同：
+
+1. 代码
+   App（i5E/）、数据层（Packages/ContentKit/）、构建工具（Tools/、Scripts/）
+   等本项目原创代码，采用 MIT 许可，见 LICENSE。
+
+2. 内容
+   DND5e_chm/ 及其派生产物（内容库 content.db、图片等）来自上游项目
+   https://github.com/DND5eChm/DND5e_chm，该仓库采用 GPL-3.0；其中文本、
+   翻译与美术素材的著作权归 Wizards of the Coast 及相应译者/权利人所有。
+
+   本项目不主张这些内容的版权，不销售内容，不修改原文；内容纠错请提交给上游。
+
+本项目为非官方项目，与 Wizards of the Coast 无关联。

@@ -51,5 +51,5 @@
 | I15 | 实体页 | [0022](decisions/0022-no-entity-pages.md) · 不做（被速查与搜索覆盖） |
 | I16 | 可访问性 | [0023](decisions/0023-accessibility.md) · 已定（三档字号 + VoiceOver） |
 | I17 | 性能预算 | [0024](decisions/0024-performance.md) · 已定（五项预算 + 打点） |
+| I18 | 分发与许可 | [0025](decisions/0025-license-distribution.md) · 已定（App Store；代码 MIT） |
 | D4 | 追新机制 | 待排 |
-| D5 | 许可与分发 | 待排（不阻塞写代码，但别拖到首次提审） |
