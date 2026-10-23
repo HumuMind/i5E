@@ -60,4 +60,5 @@
 | I24 | 年龄分级 | [0031](decisions/0031-age-rating.md) · 已定 13+（上架地区待定） |
 | I25 | 隐私 | [0032](decisions/0032-privacy.md) · 已定（不收集 + 隐私清单） |
 | I26 | 商店页 | [0033](decisions/0033-store-listing.md) · 文案已定，截图待 UI |
+| I27 | TestFlight | [0034](decisions/0034-testflight.md) · 待定（个人阶段不启用） |
 
