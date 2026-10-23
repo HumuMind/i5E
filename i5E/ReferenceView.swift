@@ -23,6 +23,8 @@ struct ReferenceView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // 顶部让出浮动按钮的位置
+            Color.clear.frame(height: 44)
             filterBar
             Divider().overlay(theme.border)
             content
@@ -30,10 +32,7 @@ struct ReferenceView: View {
         .background(theme.background)
         .environment(\.readingTheme, theme)
         .overlay(alignment: .bottomTrailing) { modeToggle }
-        .navigationTitle(page.title.isEmpty ? page.path : page.title)
-        #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-        #endif
+        .hideNavigationChrome()
     }
 
     // MARK: - 筛选

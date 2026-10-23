@@ -137,6 +137,19 @@ def decode(data: bytes) -> tuple[str, str]:
     return data.decode("gb18030", "replace"), "gb18030-replace"
 
 
+_WS_RUN = re.compile(r"[\t\n\r\f\v \u00a0\u3000\u200b\u200c\u200d\u2060\ufeff]+")
+
+
+def clean_text(s: str) -> str:
+    """折叠源页里的普通空白。
+
+    源页（尤其 Word 导出的）经常在句中插入真实换行，比如「不大于20 \n尺」，
+    直接渲染会在中间断开。这里把普通空白折叠成单个空格；
+    `\u2028` 是 `<BR>` 的显式换行，必须保留。
+    """
+    return SEP.join(_WS_RUN.sub(" ", part) for part in s.split(SEP))
+
+
 def norm_text(s: str) -> str:
     return "".join(ch for ch in s if ch not in WS)
 
@@ -429,11 +442,11 @@ class Builder:
                 self.ids.add(el.get("name"))
                 self._ids.append(el.get("name"))
             if el.text:
-                out.append({**nxt, "t": el.text})
+                out.append({**nxt, "t": clean_text(el.text)})
             for ch in el:
                 self._inline_into(ch, nxt, out)
                 if ch.tail:
-                    out.append({**nxt, "t": ch.tail})
+                    out.append({**nxt, "t": clean_text(ch.tail)})
         else:
             # 注释 / 处理指令：tail 由父级循环负责，这里什么都不做
             return

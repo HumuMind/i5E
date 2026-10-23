@@ -13,6 +13,8 @@ struct ReaderView: View {
     let page: Page
     var highlight: String?
     var scrollTarget: Int?
+    /// 顶部留白，避免内容被浮动按钮遮住。
+    var topInset: CGFloat = 0
     /// 滚动时回报当前顶部 block 的字符偏移。
     var onPositionChange: ((Int) -> Void)?
 
@@ -55,7 +57,8 @@ struct ReaderView: View {
                     contentWidth = width
                 }
                 .padding(.horizontal, 24)
-                .padding(.vertical, 40)
+                .padding(.top, 40 + topInset)
+                .padding(.bottom, 40)
                 .frame(maxWidth: .infinity)
                 .background(theme.surface)
                 .accessibilityIdentifier("reader.content")
@@ -90,10 +93,7 @@ struct ReaderView: View {
                 return .handled
             }
         )
-        .navigationTitle(page.title.isEmpty ? page.path : page.title)
-        #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-        #endif
+        .hideNavigationChrome()
     }
 }
 
@@ -106,7 +106,6 @@ struct PageScreen: View {
     @State private var target: Int?
     @State private var currentOffset = 0
     @State private var failed = false
-    @State private var showingSettings = false
 
     var body: some View {
         Group {
@@ -119,43 +118,20 @@ struct PageScreen: View {
             } else if let page {
                 ReaderView(
                     page: page, highlight: route.highlight, scrollTarget: target,
+                    topInset: 48,
                     onPositionChange: { offset in
                         currentOffset = offset
+                        model.setCurrentOffset(offset)
                         model.recordPosition(
                             path: page.path, offset: offset,
                             snippet: PageText.snippet(at: offset, in: page.blocks))
                     }
                 )
-                .toolbar {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button {
-                            showingSettings = true
-                        } label: {
-                            Image(systemName: "gearshape")
-                        }
-                    }
-                    ToolbarItem(placement: .primaryAction) {
-                        Button {
-                            model.toggleBookmark(
-                                path: page.path, offset: currentOffset,
-                                title: page.title,
-                                snippet: PageText.snippet(at: currentOffset, in: page.blocks))
-                        } label: {
-                            Image(
-                                systemName: model.isBookmarked(
-                                    path: page.path, offset: currentOffset)
-                                    ? "bookmark.fill" : "bookmark")
-                        }
-                    }
-                }
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .task(id: route) { await load() }
-        .sheet(isPresented: $showingSettings) {
-            SettingsView()
-        }
     }
 
     private func load() async {
@@ -166,6 +142,7 @@ struct PageScreen: View {
         page = loaded
         guard let loaded else {
             failed = true
+            model.setCurrent(page: nil, offset: 0)
             return
         }
         if let offset = route.offset {
@@ -181,5 +158,6 @@ struct PageScreen: View {
             target = nil
             currentOffset = 0
         }
+        model.setCurrent(page: loaded, offset: currentOffset)
     }
 }

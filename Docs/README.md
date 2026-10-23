@@ -61,4 +61,5 @@
 | I25 | 隐私 | [0032](decisions/0032-privacy.md) · 已定（不收集 + 隐私清单） |
 | I26 | 商店页 | [0033](decisions/0033-store-listing.md) · 文案已定，截图待 UI |
 | I27 | TestFlight | [0034](decisions/0034-testflight.md) · 待定（个人阶段不启用） |
+| I28 | 信息架构 | [0035](decisions/0035-navigation.md) · 已定（全屏 + 浮动按钮 + 抽屉） |
 

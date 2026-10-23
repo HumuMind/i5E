@@ -34,6 +34,9 @@ final class AppModel {
 
     /// 详情列的导航栈。
     var routes: [Route] = []
+    /// 当前正在显示的页面与位置，供浮动按钮（书签）使用。
+    private(set) var currentPage: Page?
+    private(set) var currentOffset = 0
     var query: String = ""
     private(set) var isSearching = false
 
@@ -68,6 +71,12 @@ final class AppModel {
             chapterPath = Self.buildChapterPaths(TOCSectionBuilder.build(from: tree.nodes))
 
             bookmarks = store.bookmarks()
+
+            // 调试与截图用：`-openPage <路径>` 直接打开某一页
+            if let path = UserDefaults.standard.string(forKey: "openPage"), !path.isEmpty {
+                routes = [Route(path: path)]
+            }
+
             if let size = store.loadFontSize() {
                 metrics = .forSize(size)
             }
@@ -166,6 +175,20 @@ final class AppModel {
             walk(section.nodes, trail: section.isPinned ? [] : [section.title])
         }
         return map
+    }
+
+    func setCurrent(page: Page?, offset: Int) {
+        currentPage = page
+        currentOffset = offset
+    }
+
+    func setCurrentOffset(_ offset: Int) {
+        currentOffset = offset
+    }
+
+    func goBack() {
+        guard routes.count > 1 else { return }
+        routes.removeLast()
     }
 
     func push(_ route: Route) {
