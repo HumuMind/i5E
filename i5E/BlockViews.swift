@@ -336,7 +336,7 @@ private struct ListBlockView: View {
             ForEach(Array((block.items ?? []).enumerated()), id: \.offset) { index, item in
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(marker(index))
-                        .font(.custom("Songti SC", size: metrics.bodySize))
+                        .font(.system(size: metrics.bodySize))
                         .foregroundStyle(.secondary)
                         .frame(minWidth: 18, alignment: .trailing)
                     VStack(alignment: .leading, spacing: 8) {
@@ -540,7 +540,11 @@ private struct TableBlockView: View {
         .padding(.vertical, 5)
         .frame(width: width(at: index, span: span, layout: layout), alignment: .topLeading)
         .background(cellBackground(cell))
-        .overlay(Rectangle().stroke(theme.border, lineWidth: 0.5))
+        .overlay {
+            if !isBorderless {
+                Rectangle().stroke(theme.border, lineWidth: 0.5)
+            }
+        }
     }
 }
 
@@ -562,7 +566,7 @@ enum AttributedText {
             var intents: InlinePresentationIntent = []
             if bold || run.b == 1 { intents.insert(.stronglyEmphasized) }
             if run.i == 1 { intents.insert(.emphasized) }
-            var font = Font.custom("Songti SC", size: size)
+            var font = Font.system(size: size)
             if bold || run.b == 1 { font = font.bold() }
             if run.i == 1 { font = font.italic() }
             let color: Color = resolvedColor(

@@ -62,7 +62,8 @@ import ContentKit
             if run.b == 1 { traits.insert(.traitBold) }
             if run.i == 1 { traits.insert(.traitItalic) }
 
-            let base = UIFont(name: "Songti SC", size: size) ?? UIFont.systemFont(ofSize: size)
+            // 与源页一致用无衬线（系统字体在中文下是苹方）
+            let base = UIFont.systemFont(ofSize: size)
             guard !traits.isEmpty,
                 let descriptor = base.fontDescriptor.withSymbolicTraits(traits)
             else { return base }
