@@ -381,3 +381,34 @@ final class ReaderStateTests: XCTestCase {
         XCTAssertEqual(loaded.searchHistory, ["火球", "先攻"])
     }
 }
+
+final class IntegrityTests: XCTestCase {
+    private func database() throws -> ContentDatabase {
+        guard let path = ProcessInfo.processInfo.environment["CONTENT_DB"] else {
+            throw XCTSkip("未设置 CONTENT_DB")
+        }
+        return try ContentDatabase(url: URL(fileURLWithPath: path))
+    }
+
+    func testHealthyDatabaseReportsNoProblem() async throws {
+        let report = await (try database()).integrityReport()
+        XCTAssertNil(report, "正常内容库不该报错，实际：\(report ?? "")")
+    }
+
+    /// 截断的文件应当被识别为损坏，而不是"打开成功但内容为空"
+    func testTruncatedDatabaseReportsProblem() async throws {
+        let source = ProcessInfo.processInfo.environment["CONTENT_DB"] ?? ""
+        let broken = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("broken-\(UUID().uuidString).db")
+        let data = try Data(contentsOf: URL(fileURLWithPath: source))
+        try data.prefix(data.count / 3).write(to: broken)
+        defer { try? FileManager.default.removeItem(at: broken) }
+
+        let opened = try? ContentDatabase(url: broken)
+        if let opened {
+            let report = await opened.integrityReport()
+            XCTAssertNotNil(report, "截断的库应当被识别为损坏")
+        }
+        // 打不开也算识别成功，无需断言
+    }
+}

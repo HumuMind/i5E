@@ -82,6 +82,10 @@ final class AppModel {
             let database = try await Signpost.measure("openDatabase") {
                 try ContentDatabase(url: url)
             }
+            if let problem = await database.integrityReport() {
+                phase = .failed(problem)
+                return
+            }
             db = database
             let tree = try await Signpost.measure("loadTOC") {
                 try await database.tableOfContents()

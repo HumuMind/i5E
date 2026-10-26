@@ -25,6 +25,32 @@ public final class ContentDatabase: Sendable {
         return try JSONDecoder().decode(TOC.self, from: data)
     }
 
+    /// 轻量完整性检查，返回 `nil` 表示正常，否则是一句可读的原因。
+    ///
+    /// 只做 `PRAGMA quick_check` 与页数比对（毫秒级）。全量正文哈希要几秒，
+    /// 那是构建与测试阶段的事，不该压在启动路径上。
+    public func integrityReport() async -> String? {
+        do {
+            let ok = try await dbQueue.read { db -> String in
+                let rows = try String.fetchAll(db, sql: "PRAGMA quick_check")
+                return rows.joined(separator: "; ")
+            }
+            if ok.lowercased() != "ok" {
+                return "数据库结构异常：\(ok)"
+            }
+            let actual = try await dbQueue.read { db in
+                try Int.fetchOne(db, sql: "SELECT count(*) FROM pages") ?? -1
+            }
+            let expected = try await metaValue("pages").flatMap { Int($0) }
+            if let expected, actual != expected {
+                return "页面数量不符：应为 \(expected)，实际 \(actual)"
+            }
+            return nil
+        } catch {
+            return "无法读取内容库：\(error)"
+        }
+    }
+
     public func metaValue(_ key: String) async throws -> String? {
         try await dbQueue.read { db in
             try String.fetchOne(db, sql: "SELECT value FROM meta WHERE key = ?", arguments: [key])

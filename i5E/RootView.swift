@@ -176,8 +176,16 @@ private struct DrawerContent: View {
         case .idle, .loading:
             ProgressView("打开内容库…").frame(maxWidth: .infinity, maxHeight: .infinity)
         case .failed(let message):
-            ContentUnavailableView(
-                "内容库打不开", systemImage: "exclamationmark.triangle", description: Text(message))
+            ContentUnavailableView {
+                Label("内容库无法读取", systemImage: "exclamationmark.triangle")
+            } description: {
+                Text(message)
+            } actions: {
+                Text("请删除本应用后从 App Store 重新下载。内容随应用分发，没有其他修复途径。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
         case .ready:
             TOCTree(nodes: model.toc?.nodes ?? [])
         }
