@@ -140,7 +140,8 @@ public enum TableLayoutCalculator {
             }
         }
         guard !longest.isEmpty else { return 0 }
-        let font = CTFontCreateUIFontForLanguage(.system, fontSize, nil)
+        let font =
+            CTFontCreateUIFontForLanguage(.system, fontSize, nil)
             ?? CTFontCreateWithName("Helvetica" as CFString, fontSize, nil)
         let attributed = NSAttributedString(
             string: longest, attributes: [kCTFontAttributeName as NSAttributedString.Key: font])
