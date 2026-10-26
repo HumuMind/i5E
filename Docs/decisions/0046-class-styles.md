@@ -17,6 +17,7 @@
 | `div.stat-block` | 底色 `#f8f8f6`、3px 双线边框、内边距 15、最大宽 560 | 896 |
 | `div.little-paper` | 底色 `#faf0eb`、双线边框 `#9e6859` | — |
 | `div.HT` | 底色 `#f0e9da`、仅上边框 | — |
+| `div.center` | 底色 `#ebd6c1`、2px 边框、左右 8% 外边距 | 84 |
 | `stat-block` 内的 h5/h6 | 暗红加粗 + 下划线 | 896 |
 | `div.sub-line` | 灰色斜体 | 743 |
 | `td.c1`–`c4` | 属性表斑马纹 | 761 |

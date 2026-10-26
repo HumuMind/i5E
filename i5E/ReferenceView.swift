@@ -150,6 +150,8 @@ struct ReferenceView: View {
                 }
             }
             .padding(16)
+            // 给右下角的悬浮开关留出位置，避免压住最后一行卡片
+            .padding(.bottom, 72)
             if filteredRows.isEmpty {
                 ContentUnavailableView("没有匹配", systemImage: "line.3.horizontal.decrease.circle")
                     .padding(.top, 60)

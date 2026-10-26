@@ -11,8 +11,11 @@ public enum ClassStyle {
         public var background: String
         public var border: String
         public var borderWidth: CGFloat
-        public var padding: CGFloat
+        public var paddingTop: CGFloat
+        public var paddingHorizontal: CGFloat
         public var maxWidth: CGFloat?
+        /// 左右各留多少比例的外边距（源页 `div.center` 是 8%）
+        public var marginFraction: CGFloat
         /// 只画上边框（如 `div.HT`）
         public var topBorderOnly: Bool
     }
@@ -20,18 +23,28 @@ public enum ClassStyle {
     public static func container(_ classes: [String]) -> Container? {
         if classes.contains("stat-block") {
             return Container(
-                background: "#f8f8f6", border: "#808080", borderWidth: 3, padding: 15,
-                maxWidth: 560, topBorderOnly: false)
+                background: "#f8f8f6", border: "#808080", borderWidth: 3,
+                paddingTop: 15, paddingHorizontal: 15, maxWidth: 560,
+                marginFraction: 0, topBorderOnly: false)
         }
         if classes.contains("little-paper") {
             return Container(
-                background: "#faf0eb", border: "#9e6859", borderWidth: 3, padding: 15,
-                maxWidth: 560, topBorderOnly: false)
+                background: "#faf0eb", border: "#9e6859", borderWidth: 3,
+                paddingTop: 15, paddingHorizontal: 15, maxWidth: 560,
+                marginFraction: 0, topBorderOnly: false)
         }
         if classes.contains("HT") {
             return Container(
-                background: "#f0e9da", border: "#d1bc90", borderWidth: 3, padding: 5,
-                maxWidth: 580, topBorderOnly: true)
+                background: "#f0e9da", border: "#d1bc90", borderWidth: 3,
+                paddingTop: 5, paddingHorizontal: 5, maxWidth: 580,
+                marginFraction: 0, topBorderOnly: true)
+        }
+        if classes.contains("center") {
+            // div.center：带边框的强调框，左右各留 8% 外边距
+            return Container(
+                background: "#ebd6c1", border: "#656565", borderWidth: 2,
+                paddingTop: 10, paddingHorizontal: 50, maxWidth: nil,
+                marginFraction: 0.08, topBorderOnly: false)
         }
         return nil
     }

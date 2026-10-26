@@ -82,7 +82,9 @@ struct BlockView: View {
         let innerWidth: CGFloat = {
             guard let style else { return availableWidth }
             let capped = min(availableWidth, style.maxWidth ?? availableWidth)
-            return max(120, capped - style.padding * 2)
+            let inset = capped * style.marginFraction * 2
+            let horizontal = min(style.paddingHorizontal, (capped - inset) * 0.15)
+            return max(120, capped - inset - horizontal * 2)
         }()
         return VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(block.blocksOrEmpty.enumerated()), id: \.offset) { _, inner in
@@ -91,11 +93,25 @@ struct BlockView: View {
                     availableWidth: innerWidth)
             }
         }
-        .padding(style?.padding ?? 0)
-        .frame(maxWidth: style?.maxWidth, alignment: .leading)
+        .padding(.top, style?.paddingTop ?? 0)
+        .padding(.bottom, style?.paddingTop ?? 0)
+        .padding(.horizontal, horizontalPadding(style))
+        .frame(maxWidth: containerMaxWidth(style), alignment: .leading)
         .background(containerFill(style), in: .rect(cornerRadius: 2))
         .overlay { containerBorder(style) }
         .padding(.bottom, style == nil ? 0 : 14)
+    }
+
+    private func horizontalPadding(_ style: ClassStyle.Container?) -> CGFloat {
+        guard let style else { return 0 }
+        let capped = min(availableWidth, style.maxWidth ?? availableWidth)
+        return min(style.paddingHorizontal, capped * 0.15)
+    }
+
+    private func containerMaxWidth(_ style: ClassStyle.Container?) -> CGFloat? {
+        guard let style else { return nil }
+        let capped = min(availableWidth, style.maxWidth ?? availableWidth)
+        return capped * (1 - style.marginFraction * 2)
     }
 
     private func containerFill(_ style: ClassStyle.Container?) -> Color {
