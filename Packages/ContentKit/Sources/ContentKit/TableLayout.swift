@@ -124,6 +124,39 @@ public enum TableLayoutCalculator {
         return units
     }
 
+    /// 每列内容的**实测**单行宽度（pt），用于"有空间就放宽"的上限。
+    ///
+    /// 用估算值当上限会把 `伊米希Imix, 卡普斯Kossuth, 扎曼·鲁尔Zaaman Rul`
+    /// 这类中英混排压窄——拉丁字母实际比"半个字宽"要宽。
+    public static func measuredContentWidths(_ block: Block, fontSize: CGFloat) -> [CGFloat] {
+        let count = columnCount(block)
+        guard count > 0 else { return [] }
+        var widths = Array(repeating: CGFloat(0), count: count)
+        for row in (block.rows ?? []).prefix(60) {
+            var column = 0
+            for cell in row.cells {
+                let span = max(1, cell.colspan ?? 1)
+                if span == 1, column < count {
+                    let width = lineWidth(cell.plainText, fontSize: fontSize)
+                    widths[column] = max(widths[column], width)
+                }
+                column += span
+            }
+        }
+        return widths.map { $0 + horizontalPadding }
+    }
+
+    /// 单行渲染宽度。
+    private static func lineWidth(_ text: String, fontSize: CGFloat) -> CGFloat {
+        guard !text.isEmpty else { return 0 }
+        let font = CTFontCreateUIFontForLanguage(.system, fontSize, nil)
+            ?? CTFontCreateWithName("Helvetica" as CFString, fontSize, nil)
+        let attributed = NSAttributedString(
+            string: text, attributes: [kCTFontAttributeName as NSAttributedString.Key: font])
+        let line = CTLineCreateWithAttributedString(attributed)
+        return CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
+    }
+
     /// 每列"不能被断开的最短宽度"（pt）。
     ///
     /// 拉丁词与数字串（`PHB24`、`1d6+2`）不能从中间折行，列宽再紧也得容下它们。
@@ -204,6 +237,7 @@ public enum TableLayoutCalculator {
             // 还没占满可用宽度：把多余空间分给"内容比当前列宽更长"的列，
             // 避免明明有地方却把长条目折成两三行。
             let content = contentUnits(block)
+            let measured = measuredContentWidths(block, fontSize: fontSize)
             let extra = zip(content, units).map { max(0, $0 - $1) }
             let totalExtra = extra.reduce(0, +)
             guard totalExtra > 0 else { return natural }
@@ -211,9 +245,11 @@ public enum TableLayoutCalculator {
             return natural.enumerated().map { index, width in
                 guard index < content.count else { return width }
                 let estimated = CGFloat(content[index]) * fontSize / 2 + horizontalPadding
-                // 上限不能低于"不可断词"的实测下限，否则 d6 会被压回两行
+                // 上限取实测宽度：估算偏窄会把还能放下的一行挤成两行
+                let measuredCap = index < measured.count ? measured[index] : 0
+                // 也不能低于"不可断词"的实测下限，否则 d6 会被压回两行
                 let floor = index < minimums.count ? minimums[index] : 0
-                let cap = max(estimated, floor)
+                let cap = max(max(estimated, measuredCap), floor)
                 let share = spare * extra[index] / totalExtra
                 return min(cap, max(floor, width + share))
             }
