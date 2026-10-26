@@ -30,10 +30,17 @@ struct RootView: View {
                 .transition(.opacity)
             }
         }
+        .overlay {
+            if model.showDrawer {
+                DrawerBackdrop()
+                    .transition(.opacity)
+                    .onTapGesture { model.showDrawer = false }
+            }
+        }
         .overlay(alignment: .leading) {
             if model.showDrawer {
-                DrawerOverlay(isPresented: $model.showDrawer)
-                    .transition(.move(edge: .leading).combined(with: .opacity))
+                DrawerPanel()
+                    .transition(.move(edge: .leading))
             }
         }
         .animation(.easeInOut(duration: 0.2), value: model.showDrawer)
@@ -185,79 +192,39 @@ struct OverlayPanel<Content: View>: View {
     }
 }
 
-/// 抽屉的三套视觉方案，用启动参数 `-drawerStyle 1|2|3` 预览。
-enum DrawerStyle: Int {
-    /// 1：与阅读面同色，当前项浅红底 + 左侧竖条
-    case plain = 1
-    /// 2：半透明材质，当前项填充
-    case material = 2
-    /// 3：深色侧栏（浅色模式下也是深底）
-    case contrast = 3
+// MARK: - 抽屉
 
-    static var current: DrawerStyle {
-        DrawerStyle(rawValue: UserDefaults.standard.integer(forKey: "drawerStyle")) ?? .plain
+/// 抽屉的遮罩：淡入淡出，不跟着面板平移。
+private struct DrawerBackdrop: View {
+    var body: some View {
+        Color.black.opacity(0.18)
+            .ignoresSafeArea()
     }
 }
 
-// MARK: - 抽屉
-
-private struct DrawerOverlay: View {
+/// 抽屉面板：从左侧滑入。视觉方案取 1（与阅读面同色）。
+private struct DrawerPanel: View {
     @Environment(\.colorScheme) private var colorScheme
-    @Binding var isPresented: Bool
 
     private var theme: ReadingTheme { .resolve(colorScheme) }
-    private var style: DrawerStyle { DrawerStyle.current }
-
-    private var drawerBackground: Color {
-        switch style {
-        case .plain: theme.surface
-        case .material: theme.surface
-        case .contrast: theme.isDark ? theme.surface : Color(themeHex: "#1d1f22")
-        }
-    }
-
-    private var headerColor: Color {
-        style == .contrast && !theme.isDark ? Color(themeHex: "#f0f1f3") : theme.text
-    }
-
-    private var dividerColor: Color {
-        style == .contrast && !theme.isDark ? Color.white.opacity(0.12) : theme.border
-    }
-
-    @ViewBuilder
-    private var backdrop: some View {
-        switch style {
-        case .plain: Color.black.opacity(0.18)
-        case .material: Rectangle().fill(.ultraThinMaterial)
-        case .contrast: Color.black.opacity(0.32)
-        }
-    }
 
     var body: some View {
         GeometryReader { proxy in
-            ZStack(alignment: .leading) {
-                // 遮罩：方案 1 用轻压暗，方案 2 用材质模糊，方案 3 更深一些
-                backdrop
-                    .ignoresSafeArea()
-                    .onTapGesture { isPresented = false }
-
-                VStack(spacing: 0) {
-                    HStack {
-                        Text("5E 不全书").font(.headline).foregroundStyle(headerColor)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 10)
-                    Divider().overlay(dividerColor)
-                    DrawerContent()
-                        .environment(
-                            \.colorScheme, style == .contrast ? .dark : colorScheme)
+            VStack(spacing: 0) {
+                HStack {
+                    Text("5E 不全书").font(.headline).foregroundStyle(theme.text)
+                    Spacer()
                 }
-                .frame(width: min(360, proxy.size.width * 0.88))
-                .frame(maxHeight: .infinity)
-                .background(drawerBackground.ignoresSafeArea(edges: .vertical))
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 10)
+                Divider().overlay(theme.border)
+                DrawerContent()
             }
+            .frame(width: min(360, proxy.size.width * 0.88))
+            .frame(maxHeight: .infinity)
+            .background(theme.surface.ignoresSafeArea(edges: .vertical))
+            .shadow(color: .black.opacity(0.12), radius: 12, x: 2)
         }
     }
 }
