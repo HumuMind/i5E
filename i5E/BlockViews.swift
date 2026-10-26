@@ -22,6 +22,7 @@ struct BlockView: View {
         case "p", "dt":
             ParagraphView(
                 runs: block.runsOrEmpty, fontSize: metrics.bodySize,
+                alignment: Self.textAlignment(block.al),
                 skipFloatedImage: skipFloatedImage,
                 highlight: highlight, availableWidth: availableWidth
             )
@@ -143,6 +144,16 @@ struct BlockView: View {
         }
     }
 
+    /// 源页的 align 属性 → 原生对齐方式。
+    static func textAlignment(_ al: String?) -> NSTextAlignment {
+        switch al?.lowercased() {
+        case "r", "right": .right
+        case "c", "center": .center
+        case "j", "justify": .justified
+        default: .natural
+        }
+    }
+
     private var heading: some View {
         let level = block.level ?? 2
         let (scale, weight): (CGFloat, Font.Weight) =
@@ -175,6 +186,7 @@ private struct ParagraphView: View {
     @Environment(\.readingMetrics) private var metrics
     let runs: [Run]
     let fontSize: CGFloat
+    var alignment: NSTextAlignment = .natural
     var skipFloatedImage = false
     var highlight: String?
     var availableWidth: CGFloat
@@ -221,7 +233,8 @@ private struct ParagraphView: View {
                     ForEach(Array(pieces.enumerated()), id: \.offset) { _, piece in
                         if case .text(let runs) = piece {
                             BodyText(
-                                runs: runs, fontSize: fontSize, highlight: highlight, theme: theme,
+                                runs: runs, fontSize: fontSize, alignment: alignment,
+                                highlight: highlight, theme: theme,
                                 onOpenLink: { app.handleLink($0) })
                         }
                     }
@@ -240,7 +253,8 @@ private struct ParagraphView: View {
                 switch piece {
                 case .text(let runs):
                     BodyText(
-                        runs: runs, fontSize: fontSize, highlight: highlight, theme: theme,
+                        runs: runs, fontSize: fontSize, alignment: alignment,
+                        highlight: highlight, theme: theme,
                         onOpenLink: { app.handleLink($0) })
                 case .image(let run):
                     ContentImageView(run: run, maxWidth: availableWidth)

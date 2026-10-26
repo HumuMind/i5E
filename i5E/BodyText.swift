@@ -12,6 +12,8 @@ import ContentKit
     struct BodyText: View {
         let runs: [Run]
         let fontSize: CGFloat
+        /// 源页的 align 属性（l/c/r/justify）
+        var alignment: NSTextAlignment = .natural
         var highlight: String?
         var theme: ReadingTheme = .light
         var onOpenLink: (@MainActor (URL) -> Void)?
@@ -19,15 +21,17 @@ import ContentKit
         var body: some View {
             BodyLabel(
                 attributed: Self.attributed(
-                    runs: runs, fontSize: fontSize, highlight: highlight, theme: theme),
+                    runs: runs, fontSize: fontSize, alignment: alignment,
+                    highlight: highlight, theme: theme),
                 onOpenLink: onOpenLink)
         }
 
         static func attributed(
-            runs: [Run], fontSize: CGFloat, highlight: String? = nil, theme: ReadingTheme = .light
+            runs: [Run], fontSize: CGFloat, alignment: NSTextAlignment = .natural,
+            highlight: String? = nil, theme: ReadingTheme = .light
         ) -> NSAttributedString {
             let paragraph = NSMutableParagraphStyle()
-            paragraph.alignment = .natural
+            paragraph.alignment = alignment
             paragraph.lineSpacing = fontSize * (Reading.lineHeightMultiple - 1)
             // 中文行禁则：把不能出现在行首的标点挤回上一行
             paragraph.lineBreakStrategy = .pushOut
@@ -157,6 +161,8 @@ import ContentKit
     struct BodyText: View {
         let runs: [Run]
         let fontSize: CGFloat
+        var alignment: NSTextAlignment = .natural
+        var skipFloatedImage = false
         var highlight: String?
         var theme: ReadingTheme = .light
         var onOpenLink: (@MainActor (URL) -> Void)?
@@ -164,7 +170,16 @@ import ContentKit
         var body: some View {
             Text(AttributedText.make(runs, size: fontSize, highlight: highlight, theme: theme))
                 .lineSpacing(Reading.lineSpacing)
+                .multilineTextAlignment(textAlignment)
                 .frame(maxWidth: .infinity, alignment: .leading)
+        }
+
+        private var textAlignment: TextAlignment {
+            switch alignment {
+            case .right: .trailing
+            case .center: .center
+            default: .leading
+            }
         }
     }
 
