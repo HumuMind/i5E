@@ -41,8 +41,16 @@ struct ReferenceView: View {
         (1..<table.columnCount)
             .map { ($0, table.facets(column: $0)) }
             .filter { !$0.1.isEmpty }
-            .prefix(4)
+            .prefix(3)
             .map { (index: $0.0, values: $0.1) }
+    }
+
+    /// 卡片上显示的字段：跳过恒定列（如「言语」几乎都是 V/S/M），最多 4 个。
+    private var cardColumns: [Int] {
+        (1..<table.columnCount)
+            .filter { table.distinctCount(column: $0) > 1 }
+            .prefix(4)
+            .map { $0 }
     }
 
     private var filteredRows: [[ReferenceCell]] {
@@ -167,7 +175,8 @@ struct ReferenceView: View {
                     .foregroundStyle(first.link == nil ? theme.text : theme.link)
                     .multilineTextAlignment(.leading)
             }
-            ForEach(Array(row.enumerated().dropFirst().prefix(6)), id: \.offset) { index, cell in
+            ForEach(cardColumns, id: \.self) { index in
+                let cell = index < row.count ? row[index] : ReferenceCell(text: "")
                 if !cell.text.isEmpty {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text(fieldLabel(index))

@@ -30,6 +30,15 @@ public struct ReferenceTable: Sendable {
         rows.map(\.count).max() ?? headers.count
     }
 
+    /// 某一列有多少种不同取值。恒定列（只有一种取值）在卡片上没有信息量。
+    public func distinctCount(column: Int) -> Int {
+        var seen = Set<String>()
+        for row in rows where column < row.count {
+            seen.insert(row[column].text.trimmingCharacters(in: .whitespaces))
+        }
+        return seen.count
+    }
+
     /// 某一列的去重取值，用来生成筛选条件；取值太多（如名称列）返回空。
     public func facets(column: Int, limit: Int = 14) -> [String] {
         var seen = Set<String>()
