@@ -13,6 +13,7 @@ public enum ClassStyle {
         public var borderWidth: CGFloat
         public var paddingTop: CGFloat
         public var paddingHorizontal: CGFloat
+        /// 容器最大宽度（pt）。源页 CSS 写的是 px，按 96dpi 折算：px × 0.75。
         public var maxWidth: CGFloat?
         /// 左右各留多少比例的外边距（源页 `div.center` 是 8%）
         public var marginFraction: CGFloat
@@ -24,19 +25,19 @@ public enum ClassStyle {
         if classes.contains("stat-block") {
             return Container(
                 background: "#f8f8f6", border: "#808080", borderWidth: 3,
-                paddingTop: 15, paddingHorizontal: 15, maxWidth: 560,
+                paddingTop: 15, paddingHorizontal: 15, maxWidth: 403,
                 marginFraction: 0, topBorderOnly: false)
         }
         if classes.contains("little-paper") {
             return Container(
                 background: "#faf0eb", border: "#9e6859", borderWidth: 3,
-                paddingTop: 15, paddingHorizontal: 15, maxWidth: 560,
+                paddingTop: 15, paddingHorizontal: 15, maxWidth: 403,
                 marginFraction: 0, topBorderOnly: false)
         }
         if classes.contains("HT") {
             return Container(
                 background: "#f0e9da", border: "#d1bc90", borderWidth: 3,
-                paddingTop: 5, paddingHorizontal: 5, maxWidth: 580,
+                paddingTop: 5, paddingHorizontal: 5, maxWidth: 421,
                 marginFraction: 0, topBorderOnly: true)
         }
         if classes.contains("center") {

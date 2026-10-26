@@ -69,16 +69,16 @@ struct BlockView: View {
     private var headingDefaultColor: Color? {
         // 页面内联样式里对标题颜色的覆盖优先于全局规则
         if let hex = block.style?.c, let rgb = RGB(hexOrRGB: hex) {
-            return theme.adjusted(rgb)
+            return theme.adjustedHeading(rgb)
         }
         // 数据块里的 h5/h6 在源页是暗红（stat-block.css），不按普通标题的规则
         if ClassStyle.isStatBlockHeading(ancestors: ancestors), (block.level ?? 0) >= 5 {
-            return RGB(hexOrRGB: "#800000").map(theme.adjusted)
+            return RGB(hexOrRGB: "#800000").map { theme.adjusted($0) }
         }
         guard let hex = SourceStyle.headingColorHex(level: block.level ?? 2),
             let rgb = RGB(hexOrRGB: hex)
         else { return nil }
-        return theme.adjusted(rgb)
+        return theme.adjustedHeading(rgb)
     }
 
     /// 带样式的容器（stat-block / little-paper / HT）。没有已知 class 时只做纵向堆叠。
@@ -126,14 +126,14 @@ struct BlockView: View {
     private var headingUnderline: some View {
         if let border = block.style?.bd {
             let color =
-                (border == "1" ? nil : RGB(hexOrRGB: border).map(theme.adjusted)) ?? theme.border
+                (border == "1" ? nil : RGB(hexOrRGB: border).map { theme.adjusted($0) }) ?? theme.border
             Rectangle()
                 .fill(color)
                 .frame(height: 1)
                 .padding(.top, 4)
         } else if ClassStyle.isStatBlockHeading(ancestors: ancestors), (block.level ?? 0) >= 5 {
             Rectangle()
-                .fill(RGB(hexOrRGB: "#800000").map(theme.adjusted) ?? theme.accent)
+                .fill(RGB(hexOrRGB: "#800000").map { theme.adjusted($0) } ?? theme.accent)
                 .frame(height: 1)
                 .padding(.top, 2)
         }
@@ -186,7 +186,7 @@ struct BlockView: View {
             AttributedText.make(
                 block.runsOrEmpty, size: metrics.bodySize * scale,
                 bold: weight == .bold || block.style?.b == 1, highlight: highlight,
-                theme: theme, defaultColor: headingDefaultColor)
+                theme: theme, defaultColor: headingDefaultColor, largeText: true)
         )
         .lineSpacing(metrics.bodySize * scale * 0.4)
         .padding(.top, level <= 2 ? 26 : 18)

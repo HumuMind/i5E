@@ -42,8 +42,16 @@ struct ReadingTheme: Sendable {
     }
 
     /// 把源页颜色修到在当前底色上可读。
-    func adjusted(_ source: RGB) -> Color {
-        Color(rgb: Contrast.repair(source, on: surfaceRGB))
+    func adjusted(_ source: RGB, minimum: Double = 4.5) -> Color {
+        Color(rgb: Contrast.repair(source, on: surfaceRGB, minimum: minimum))
+    }
+
+    /// 标题按 WCAG 的"大字"标准放宽到 3:1。
+    ///
+    /// 按正文的 4.5:1 处理会把源页的亮橙 `#ff8000` 压成褐色，
+    /// 而 18pt 以上的文字 3:1 就够了。
+    func adjustedHeading(_ source: RGB) -> Color {
+        adjusted(source, minimum: 3.0)
     }
 
     /// 表格底色：深色下压暗、保留色相。
