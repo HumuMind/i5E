@@ -185,8 +185,10 @@ final class AppModel {
         refreshBookmarks()
     }
 
+    /// 读 `bookmarks` 而不是直接问 store：@Observable 只跟踪被读到的属性，
+    /// 走 store 的话界面不会因为书签变化而刷新。
     func isBookmarked(path: String, offset: Int) -> Bool {
-        store.isBookmarked(path: path, offset: offset)
+        bookmarks.contains { $0.path == path && abs($0.offset - offset) < 200 }
     }
 
     /// 页面是否属于「旧版内容」那一章。

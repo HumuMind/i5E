@@ -41,22 +41,33 @@ struct RootView: View {
             // Esc 关抽屉（iOS 上没有这个命令）
             .onExitCommand { model.showDrawer = false }
         #endif
-        .sheet(isPresented: $model.showSettings) {
-            SettingsView()
+        .overlay {
+            if model.showSearch {
+                OverlayPanel(title: "查找", isPresented: $model.showSearch) {
+                    SearchPanel()
+                }
+            }
         }
-        .sheet(isPresented: $model.showSearch) {
-            SearchPanel()
+        .overlay {
+            if model.showSettings {
+                OverlayPanel(title: "设置", isPresented: $model.showSettings) {
+                    SettingsView()
+                }
+            }
         }
     }
 }
 
-/// 隐藏系统导航栏 / 窗口工具栏：三个平台用不同的 placement。
+/// 隐藏系统导航栏。
+///
+/// 只在 iOS 上做：macOS 的窗口工具栏承载关闭/最小化/最大化三个按钮，
+/// 隐藏之后窗口就没有标题栏了，只剩一条奇怪的色带。
 private struct HideNavigationChrome: ViewModifier {
     func body(content: Content) -> some View {
         #if os(iOS)
             content.toolbar(.hidden, for: .navigationBar)
         #else
-            content.toolbar(.hidden, for: .windowToolbar)
+            content
         #endif
     }
 }
@@ -133,6 +144,61 @@ private struct FloatingBar: View {
     }
 }
 
+/// 居中卡片式浮层：点背景关闭。macOS 的 sheet 不支持点外部关闭，
+/// 搜索与设置都改用它，与抽屉的行为保持一致。
+struct OverlayPanel<Content: View>: View {
+    let title: String
+    @Binding var isPresented: Bool
+    @ViewBuilder var content: Content
+
+    @Environment(\.colorScheme) private var colorScheme
+    private var theme: ReadingTheme { .resolve(colorScheme) }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.28)
+                .ignoresSafeArea()
+                .onTapGesture { isPresented = false }
+
+            VStack(spacing: 0) {
+                HStack {
+                    Text(title).font(.headline).foregroundStyle(theme.text)
+                    Spacer()
+                    Button("完成") { isPresented = false }
+                        .keyboardShortcut(.cancelAction)
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
+                Divider()
+                content
+            }
+            .frame(minWidth: 380, maxWidth: 560, minHeight: 320, maxHeight: 640)
+            .background(theme.surface)
+            .clipShape(.rect(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14).stroke(theme.border, lineWidth: 0.5)
+            )
+            .shadow(color: .black.opacity(0.25), radius: 28, y: 10)
+            .padding(40)
+        }
+        .transition(.opacity)
+    }
+}
+
+/// 抽屉的三套视觉方案，用启动参数 `-drawerStyle 1|2|3` 预览。
+enum DrawerStyle: Int {
+    /// 1：与阅读面同色，当前项浅红底 + 左侧竖条
+    case plain = 1
+    /// 2：半透明材质，当前项填充
+    case material = 2
+    /// 3：深色侧栏（浅色模式下也是深底）
+    case contrast = 3
+
+    static var current: DrawerStyle {
+        DrawerStyle(rawValue: UserDefaults.standard.integer(forKey: "drawerStyle")) ?? .plain
+    }
+}
+
 // MARK: - 抽屉
 
 private struct DrawerOverlay: View {
@@ -140,29 +206,57 @@ private struct DrawerOverlay: View {
     @Binding var isPresented: Bool
 
     private var theme: ReadingTheme { .resolve(colorScheme) }
+    private var style: DrawerStyle { DrawerStyle.current }
+
+    private var drawerBackground: Color {
+        switch style {
+        case .plain: theme.surface
+        case .material: theme.surface
+        case .contrast: theme.isDark ? theme.surface : Color(themeHex: "#1d1f22")
+        }
+    }
+
+    private var headerColor: Color {
+        style == .contrast && !theme.isDark ? Color(themeHex: "#f0f1f3") : theme.text
+    }
+
+    private var dividerColor: Color {
+        style == .contrast && !theme.isDark ? Color.white.opacity(0.12) : theme.border
+    }
+
+    @ViewBuilder
+    private var backdrop: some View {
+        switch style {
+        case .plain: Color.black.opacity(0.18)
+        case .material: Rectangle().fill(.ultraThinMaterial)
+        case .contrast: Color.black.opacity(0.32)
+        }
+    }
 
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
-                Color.black.opacity(0.25)
+                // 遮罩：方案 1 用轻压暗，方案 2 用材质模糊，方案 3 更深一些
+                backdrop
                     .ignoresSafeArea()
                     .onTapGesture { isPresented = false }
 
                 VStack(spacing: 0) {
                     HStack {
-                        Text("5E 不全书").font(.headline).foregroundStyle(theme.text)
+                        Text("5E 不全书").font(.headline).foregroundStyle(headerColor)
                         Spacer()
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 16)
                     .padding(.bottom, 10)
-                    Divider().overlay(theme.border)
+                    Divider().overlay(dividerColor)
                     DrawerContent()
+                        .environment(
+                            \.colorScheme, style == .contrast ? .dark : colorScheme)
                 }
                 .frame(width: min(360, proxy.size.width * 0.88))
                 .frame(maxHeight: .infinity)
-                // 背景铺到状态栏，内容留在安全区内
-                .background(theme.surface.ignoresSafeArea(edges: .vertical))
+                .background(drawerBackground.ignoresSafeArea(edges: .vertical))
             }
         }
     }
@@ -208,6 +302,7 @@ struct TOCTree: View {
                         Button {
                             model.show(
                                 AppModel.Route(path: bookmark.path, offset: bookmark.offset))
+                            model.showDrawer = false
                         } label: {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(bookmark.title).lineLimit(1)
@@ -242,13 +337,17 @@ struct TOCTree: View {
             }
         }
         .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
     }
 }
 
 private struct NodeRows: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.colorScheme) private var colorScheme
     let node: TOCNode
     let depth: Int
+
+    private var highlight: Color { ReadingTheme.resolve(colorScheme).accent }
 
     private var expanded: Binding<Bool> {
         Binding(
@@ -261,6 +360,7 @@ private struct NodeRows: View {
             Button {
                 guard let path = node.u else { return }
                 model.show(AppModel.Route(path: path))
+                model.showDrawer = false
             } label: {
                 rowLabel(systemImage: "doc.text")
             }
@@ -276,6 +376,7 @@ private struct NodeRows: View {
                 Button {
                     guard let path = node.u else { return }
                     model.show(AppModel.Route(path: path))
+                    model.showDrawer = false
                 } label: {
                     rowLabel(systemImage: "book.closed")
                 }
@@ -284,12 +385,28 @@ private struct NodeRows: View {
         }
     }
 
+    /// 当前正在读的页面
+    private var isCurrent: Bool {
+        guard let url = node.u else { return false }
+        let path = url.split(separator: "#").first.map(String.init) ?? url
+        return model.routes.last?.path == path
+    }
+
     private func rowLabel(systemImage: String) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: systemImage).foregroundStyle(.secondary)
-            Text(node.t).lineLimit(1)
+            Image(systemName: systemImage)
+                .foregroundStyle(isCurrent ? highlight : .secondary)
+            Text(node.t)
+                .lineLimit(1)
+                .foregroundStyle(isCurrent ? highlight : .primary)
+                .fontWeight(isCurrent ? .semibold : .regular)
         }
-        .padding(.leading, CGFloat(depth) * 8)
+        .padding(.leading, CGFloat(depth) * 8 + (isCurrent ? 4 : 0))
+        .overlay(alignment: .leading) {
+            if isCurrent {
+                Capsule().fill(highlight).frame(width: 3).padding(.vertical, 1)
+            }
+        }
         .contentShape(Rectangle())
     }
 }
@@ -349,7 +466,6 @@ struct SearchResultsView: View {
 
 struct SearchPanel: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @State private var tab: Tab = .search
 
@@ -367,34 +483,22 @@ struct SearchPanel: View {
     private var theme: ReadingTheme { .resolve(colorScheme) }
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                Picker("", selection: $tab) {
-                    ForEach(Tab.allCases) { item in
-                        Text(item.rawValue).tag(item)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-
-                switch tab {
-                case .search: searchTab
-                case .recent: recentTab
+        VStack(spacing: 0) {
+            Picker("", selection: $tab) {
+                ForEach(Tab.allCases) { item in
+                    Text(item.rawValue).tag(item)
                 }
             }
-            .navigationTitle("查找")
-            #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
-                }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+
+            switch tab {
+            case .search: searchTab
+            case .recent: recentTab
             }
         }
-        .frame(minWidth: 360, minHeight: 480)
         .onAppear { focused = true }
     }
 
@@ -478,7 +582,7 @@ struct SearchPanel: View {
                     ForEach(model.recentPages) { page in
                         Button {
                             model.show(AppModel.Route(path: page.path))
-                            dismiss()
+                            model.showSearch = false
                         } label: {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(page.title).lineLimit(1)
