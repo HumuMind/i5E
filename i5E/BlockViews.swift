@@ -540,6 +540,8 @@ private struct TableBlockView: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 5)
         .frame(width: width(at: index, span: span, layout: layout), alignment: .topLeading)
+        // 撑满行高：源页的 td 背景是整格高度，矮的格子不撑开就会出现灰底高低不齐
+        .frame(maxHeight: .infinity, alignment: .topLeading)
         .background(cellBackground(cell))
         .overlay {
             if !isBorderless {
