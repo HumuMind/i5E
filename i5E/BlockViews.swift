@@ -7,6 +7,8 @@ struct BlockView: View {
     let block: Block
     /// 祖先容器的 class（`stat-block` 等），用于按源页样式渲染内部元素。
     var ancestors: Set<String> = []
+    /// 浮动图已经在外面并排渲染时，段落里不再重复画一次
+    var skipFloatedImage = false
     var highlight: String?
     var availableWidth: CGFloat = ReadingMetrics.standard.measure
 
@@ -20,6 +22,7 @@ struct BlockView: View {
         case "p", "dt":
             ParagraphView(
                 runs: block.runsOrEmpty, fontSize: metrics.bodySize,
+                skipFloatedImage: skipFloatedImage,
                 highlight: highlight, availableWidth: availableWidth
             )
             .padding(.bottom, metrics.bodySize * 0.95)
@@ -172,6 +175,7 @@ private struct ParagraphView: View {
     @Environment(\.readingMetrics) private var metrics
     let runs: [Run]
     let fontSize: CGFloat
+    var skipFloatedImage = false
     var highlight: String?
     var availableWidth: CGFloat
 
@@ -188,6 +192,7 @@ private struct ParagraphView: View {
         var buffer: [Run] = []
         for run in runs {
             if run.img != nil {
+                if skipFloatedImage, run.align == "right" { continue }
                 if !buffer.isEmpty {
                     result.append(.text(buffer))
                     buffer = []
@@ -201,7 +206,35 @@ private struct ParagraphView: View {
         return result
     }
 
+    /// 段落里带浮动图时，文字和图并排（近似源页的 `align=right` 浮动）。
+    private var floatedImage: Run? {
+        pieces.compactMap { piece in
+            if case .image(let run) = piece, run.align == "right" { return run }
+            return nil
+        }.first
+    }
+
     var body: some View {
+        if let image = floatedImage {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(Array(pieces.enumerated()), id: \.offset) { _, piece in
+                        if case .text(let runs) = piece {
+                            BodyText(
+                                runs: runs, fontSize: fontSize, highlight: highlight, theme: theme,
+                                onOpenLink: { app.handleLink($0) })
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                ContentImageView(run: image, maxWidth: availableWidth * 0.42)
+            }
+        } else {
+            plainBody
+        }
+    }
+
+    private var plainBody: some View {
         VStack(alignment: .leading, spacing: 10) {
             ForEach(Array(pieces.enumerated()), id: \.offset) { _, piece in
                 switch piece {
@@ -291,6 +324,8 @@ private struct ListBlockView: View {
     let block: Block
     /// 祖先容器的 class（`stat-block` 等），用于按源页样式渲染内部元素。
     var ancestors: Set<String> = []
+    /// 浮动图已经在外面并排渲染时，段落里不再重复画一次
+    var skipFloatedImage = false
     var highlight: String?
     var availableWidth: CGFloat = ReadingMetrics.standard.measure
 
@@ -439,8 +474,10 @@ private struct TableBlockView: View {
     }
 
     private func groupRow(_ row: ContentKit.TableRow, layout: Layout) -> some View {
+        // 源页的分组行是斜体（`<i>`），这里直接加粗并斜体
         Text(row.cells[0].plainText.trimmingCharacters(in: .whitespaces))
             .font(.system(size: layout.fontSize, weight: .semibold))
+            .italic()
             .foregroundStyle(theme.text)
             .frame(width: layout.totalWidth, alignment: .leading)
             .padding(.horizontal, 6)
@@ -520,8 +557,13 @@ enum AttributedText {
         var result = AttributedString()
         for run in runs {
             guard let text = run.t, !text.isEmpty else { continue }
-            let weight: Font.Weight = (bold || run.b == 1) ? .bold : .regular
-            var font = Font.custom("Songti SC", size: size).weight(weight)
+            // 自定义字体上直接加 .weight/.italic 在字体缺失时会被丢弃，
+            // 因此同时写语义强调，由 SwiftUI 自己合成粗体与斜体。
+            var intents: InlinePresentationIntent = []
+            if bold || run.b == 1 { intents.insert(.stronglyEmphasized) }
+            if run.i == 1 { intents.insert(.emphasized) }
+            var font = Font.custom("Songti SC", size: size)
+            if bold || run.b == 1 { font = font.bold() }
             if run.i == 1 { font = font.italic() }
             let color: Color = resolvedColor(
                 for: run, theme: theme, defaultColor: defaultColor)
@@ -532,6 +574,7 @@ enum AttributedText {
                 piece.foregroundColor = color
                 if hit { piece.backgroundColor = Color.accentColor.opacity(0.22) }
                 if let href = run.href, let url = URL(string: href) { piece.link = url }
+                if !intents.isEmpty { piece.inlinePresentationIntent = intents }
                 if run.u == 1 { piece.underlineStyle = .single }
                 if run.s == 1 { piece.strikethroughStyle = .single }
                 result.append(piece)

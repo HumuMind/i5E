@@ -30,6 +30,73 @@ struct ReaderView: View {
     @State private var topBlock: Int?
     @State private var saveTask: Task<Void, Never>?
 
+    /// 页面上的一行内容：单块，或"图文并排"组。
+    ///
+    /// 源页用 `<IMG align=right>` 让文字绕图排列，原生排版没有 float，
+    /// 这里把图与紧随其后的几段文字并排，近似出同样的观感。
+    private struct BlockGroup: Identifiable {
+        enum Kind {
+            case single(Int)
+            case floating(head: Int, tail: [Int], image: Run)
+        }
+        var id: Int
+        var kind: Kind
+    }
+
+    private var groups: [BlockGroup] {
+        var result: [BlockGroup] = []
+        var index = 0
+        let blocks = page.blocks
+        while index < blocks.count {
+            guard let image = Self.floatedImage(in: blocks[index]) else {
+                result.append(BlockGroup(id: index, kind: .single(index)))
+                index += 1
+                continue
+            }
+            // 图旁边能放下多少文字：按字数估，最多再带 3 段
+            var tail: [Int] = []
+            var characters = blocks[index].deepPlainText.count
+            var cursor = index + 1
+            while cursor < blocks.count, tail.count < 3, characters < 400,
+                blocks[cursor].type == "p" || blocks[cursor].type == "h"
+            {
+                tail.append(cursor)
+                characters += blocks[cursor].deepPlainText.count
+                cursor += 1
+            }
+            result.append(
+                BlockGroup(id: index, kind: .floating(head: index, tail: tail, image: image)))
+            index = cursor
+        }
+        return result
+    }
+
+    private static func floatedImage(in block: Block) -> Run? {
+        block.runsOrEmpty.first { $0.img != nil && $0.align == "right" }
+    }
+
+    private func floatingGroup(head: Int, tail: [Int], image: Run, width: CGFloat) -> some View {
+        HStack(alignment: .top, spacing: 18) {
+            VStack(alignment: .leading, spacing: 0) {
+                BlockView(
+                    block: page.blocks[head], skipFloatedImage: true, highlight: highlight,
+                    availableWidth: width * 0.55
+                )
+                .id(head)
+                ForEach(tail, id: \.self) { index in
+                    BlockView(
+                        block: page.blocks[index], highlight: highlight,
+                        availableWidth: width * 0.55
+                    )
+                    .id(index)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            ContentImageView(run: image, maxWidth: width * 0.42)
+        }
+        .padding(.bottom, Reading.bodySize * 0.6)
+    }
+
     private var chapterCaption: some View {
         Text(model.pathTitles(for: page.path).joined(separator: " › "))
             .font(.footnote)
@@ -42,11 +109,18 @@ struct ReaderView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     chapterCaption
-                    ForEach(Array(page.blocks.enumerated()), id: \.offset) { index, block in
-                        BlockView(
-                            block: block, highlight: highlight, availableWidth: contentWidth
-                        )
-                        .id(index)
+                    ForEach(groups) { group in
+                        switch group.kind {
+                        case .single(let index):
+                            BlockView(
+                                block: page.blocks[index], highlight: highlight,
+                                availableWidth: contentWidth
+                            )
+                            .id(index)
+                        case .floating(let index, let tail, let image):
+                            floatingGroup(
+                                head: index, tail: tail, image: image, width: contentWidth)
+                        }
                     }
                 }
                 .scrollTargetLayout()
