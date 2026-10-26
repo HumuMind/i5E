@@ -1,4 +1,5 @@
 import CoreGraphics
+import CoreText
 import Foundation
 
 /// 表格列宽计算。
@@ -102,18 +103,87 @@ public enum TableLayoutCalculator {
         return result
     }
 
+    /// 每列"不能被断开的最短宽度"（pt）。
+    ///
+    /// 拉丁词与数字串（`PHB24`、`1d6+2`）不能从中间折行，列宽再紧也得容下它们。
+    /// 用 CoreText 实测而不是按字符数估算——拉丁字母比"半个字宽"要宽，
+    /// 估算会让 `PHB24` 被折成两行。
+    public static func minimumWidths(_ block: Block, fontSize: CGFloat) -> [CGFloat] {
+        let count = columnCount(block)
+        guard count > 0 else { return [] }
+        var minimum = Array(repeating: CGFloat(0), count: count)
+
+        for row in block.rows ?? [] {
+            var column = 0
+            for cell in row.cells {
+                let span = max(1, cell.colspan ?? 1)
+                if span == 1, column < count {
+                    let width = longestTokenWidth(cell.plainText, fontSize: fontSize)
+                    minimum[column] = max(minimum[column], width)
+                }
+                column += span
+            }
+        }
+        return minimum.map { $0 + horizontalPadding }
+    }
+
+    /// 最长的不可断片段（连续的非空白 ASCII）的渲染宽度。
+    private static func longestTokenWidth(_ text: String, fontSize: CGFloat) -> CGFloat {
+        var longest = ""
+        var current = ""
+        for character in text {
+            if character.isASCII, !character.isWhitespace {
+                current.append(character)
+                if current.count > longest.count { longest = current }
+            } else {
+                current = ""
+            }
+        }
+        guard !longest.isEmpty else { return 0 }
+        let font = CTFontCreateUIFontForLanguage(.system, fontSize, nil)
+            ?? CTFontCreateWithName("Helvetica" as CFString, fontSize, nil)
+        let attributed = NSAttributedString(
+            string: longest, attributes: [kCTFontAttributeName as NSAttributedString.Key: font])
+        let line = CTLineCreateWithAttributedString(attributed)
+        return CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
+    }
+
+    /// 文本里最长的不可断片段：连续的数字/拉丁字符/小数点/加号。
+    /// 单位与 `displayUnits` 一致：半角字符记 1，全角记 2。
+    private static func longestToken(_ text: String) -> Double {
+        var best = 0.0
+        var current = 0.0
+        for character in text {
+            if character.isASCII, !character.isWhitespace {
+                current += 1
+                best = max(best, current)
+            } else {
+                current = 0
+            }
+        }
+        return best
+    }
+
     /// 计算实际列宽（pt）。总和不超过 `available`；内容窄时保持自然宽度。
     public static func widths(_ block: Block, fontSize: CGFloat, available: CGFloat) -> [CGFloat] {
         let units = columnUnits(block)
         guard !units.isEmpty else { return [] }
 
-        let natural = units.map { CGFloat($0) * fontSize / 2 + horizontalPadding }
+        let minimums = minimumWidths(block, fontSize: fontSize)
+        // 估算宽度不能小于"不可断词"的实测宽度，否则 PHB24 会被折成两行
+        let natural = units.enumerated().map { index, unit in
+            let estimated = CGFloat(unit) * fontSize / 2 + horizontalPadding
+            let floor = index < minimums.count ? minimums[index] : 0
+            return max(estimated, floor)
+        }
         let total = natural.reduce(0, +)
         guard total > available, available > 0 else { return natural }
 
-        let floor = CGFloat(minUnits) * fontSize / 2 + horizontalPadding
         let scale = available / total
-        var scaled = natural.map { max(floor, $0 * scale) }
+        var scaled = natural.enumerated().map { index, width in
+            let floor = index < minimums.count ? minimums[index] : 0
+            return max(floor, width * scale)
+        }
 
         let sum = scaled.reduce(0, +)
         if sum > available {

@@ -471,3 +471,33 @@ final class NormalizeRealPageTests: XCTestCase {
         }
     }
 }
+
+final class TableMinimumWidthTests: XCTestCase {
+    private func table(_ rows: [[(String, Int)]]) throws -> Block {
+        let json = """
+            {"type":"table","rows":[
+            \(rows.map { row in
+                "{\"cells\":[" + row.map { cell in
+                    "{\"colspan\":\(cell.1),\"blocks\":[{\"type\":\"p\",\"runs\":[{\"t\":\"\(cell.0)\"}]}]}"
+                }.joined(separator: ",") + "]}"
+            }.joined(separator: ","))
+            ]}
+            """
+        return try JSONDecoder().decode(Block.self, from: Data(json.utf8))
+    }
+
+    /// `PHB24` 这类不可断词要有足够的最小宽度
+    func testUnbreakableTokenGetsMinimum() throws {
+        let block = try table([[("名称", 1), ("来源", 1)], [("短棒Club", 1), ("PHB24", 1)]])
+        let minimums = TableLayoutCalculator.minimumWidths(block, fontSize: 13)
+        XCTAssertEqual(minimums.count, 2)
+        XCTAssertGreaterThanOrEqual(minimums[1], 40, "PHB24 至少要有 5 个字母的实际宽度")
+    }
+
+    /// 中文可以逐字断，最小宽度保持很小
+    func testChineseHasSmallMinimum() throws {
+        let block = try table([[("名称", 1)], [("这是一段很长的中文内容", 1)]])
+        let minimums = TableLayoutCalculator.minimumWidths(block, fontSize: 13)
+        XCTAssertLessThanOrEqual(minimums[0], 20, "中文可逐字断，下限很小")
+    }
+}
