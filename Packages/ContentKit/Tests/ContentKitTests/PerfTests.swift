@@ -91,3 +91,26 @@ final class HeavyPageTests: XCTestCase {
         print(String(format: "  表格排版：%.0f ms", Date().timeIntervalSince(t2) * 1000))
     }
 }
+
+final class StartupTests: XCTestCase {
+    func testStartupPhases() async throws {
+        guard let path = ProcessInfo.processInfo.environment["CONTENT_DB"] else {
+            throw XCTSkip("未设置 CONTENT_DB")
+        }
+        var t = Date()
+        let db = try ContentDatabase(url: URL(fileURLWithPath: path))
+        print(String(format: "  打开库：%.0f ms", Date().timeIntervalSince(t) * 1000))
+
+        t = Date()
+        _ = try await db.integrityReport()
+        print(String(format: "  完整性检查：%.0f ms", Date().timeIntervalSince(t) * 1000))
+
+        t = Date()
+        let toc = try await db.tableOfContents()
+        print(String(format: "  目录：%.0f ms（%d 个顶层节点）", Date().timeIntervalSince(t) * 1000, toc.nodes.count))
+
+        t = Date()
+        _ = try await db.page(path: "写在前面.html")
+        print(String(format: "  首页：%.0f ms", Date().timeIntervalSince(t) * 1000))
+    }
+}

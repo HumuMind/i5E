@@ -87,6 +87,7 @@ extension View {
 /// 点它的返回按钮会落到一个不该出现的页面。Mac 上用自己的浮动返回按钮。
 private struct ReaderContent: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         #if os(macOS)
@@ -94,17 +95,36 @@ private struct ReaderContent: View {
                 PageScreen(route: route)
                     .id(route)
             } else {
-                StartPlaceholder()
+                loadingOrPlaceholder
             }
         #else
             @Bindable var model = model
             NavigationStack(path: $model.routes) {
-                StartPlaceholder()
+                loadingOrPlaceholder
                     .navigationDestination(for: AppModel.Route.self) { route in
                         PageScreen(route: route)
                     }
             }
         #endif
+    }
+
+    /// 启动阶段的根视图。
+    ///
+    /// 三种状态：已有路由时留白（页面正在被推上来，不能露出底下的文字）、
+    /// 加载中显示转圈、内容就绪但确实没有页面才显示占位。
+    @ViewBuilder
+    private var loadingOrPlaceholder: some View {
+        if !model.routes.isEmpty {
+            Color.clear
+        } else if case .ready = model.phase {
+            StartPlaceholder()
+        } else if case .failed = model.phase {
+            StartPlaceholder()
+        } else {
+            ProgressView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(ReadingTheme.resolve(colorScheme).background)
+        }
     }
 }
 
@@ -130,15 +150,19 @@ private struct FloatingBar: View {
     private var theme: ReadingTheme { .resolve(colorScheme) }
 
     var body: some View {
-        HStack(spacing: 8) {
-            if canGoBack {
-                button("chevron.backward", label: "返回") { model.goBack() }
-            }
-            button("list.bullet", label: "目录") {
-                showDrawer.toggle()
-            }
-            button("magnifyingglass", label: "搜索") {
-                model.focusSearch()
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    button("list.bullet", label: "目录") {
+                        showDrawer.toggle()
+                    }
+                    button("magnifyingglass", label: "搜索") {
+                        model.focusSearch()
+                    }
+                }
+                if canGoBack {
+                    button("chevron.backward", label: "返回") { model.goBack() }
+                }
             }
             Spacer()
             if let page = model.currentPage {

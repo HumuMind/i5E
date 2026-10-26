@@ -14,6 +14,18 @@ import ContentKit
 @Observable
 final class AppModel {
 
+    init() {
+        // 同步恢复上次位置：UserDefaults 读取不需要等异步启动，
+        // 这样第一帧就有页面（内容会短暂转圈，但不会闪出空白占位）。
+        if let last = store.loadPosition() {
+            routes = [Route(path: last.path, offset: last.offset)]
+        }
+        // 调试与截图用：`-openPage <路径>` 直接打开某一页
+        if let raw = UserDefaults.standard.string(forKey: "openPage"), !raw.isEmpty {
+            routes = [Route(path: raw)]
+        }
+    }
+
     enum Phase: Equatable {
         case idle, loading, ready, failed(String)
     }
@@ -82,9 +94,16 @@ final class AppModel {
             let database = try await Signpost.measure("openDatabase") {
                 try ContentDatabase(url: url)
             }
-            if let problem = await database.integrityReport() {
-                phase = .failed(problem)
-                return
+            // 内容库随包分发、构建后不会变：按内容哈希记住"已检查通过"，
+            // 后续启动跳过（quick_check 在 Mac 上就要 200 ms）。
+            let digest = (try? await database.metaValue("text_sha256")) ?? ""
+            let integrityKey = "integrity.ok.\(digest.prefix(16))"
+            if !UserDefaults.standard.bool(forKey: integrityKey) {
+                if let problem = await database.integrityReport() {
+                    phase = .failed(problem)
+                    return
+                }
+                UserDefaults.standard.set(true, forKey: integrityKey)
             }
             db = database
             let tree = try await Signpost.measure("loadTOC") {
@@ -106,11 +125,6 @@ final class AppModel {
                 updateQuery(seeded)
             }
 
-            // 调试与截图用：`-openPage <路径>` 直接打开某一页
-            if let path = UserDefaults.standard.string(forKey: "openPage"), !path.isEmpty {
-                routes = [Route(path: path)]
-            }
-
             if let size = store.loadFontSize() {
                 metrics = .forSize(size)
             }
@@ -125,9 +139,7 @@ final class AppModel {
             {
                 pageCount = count
             }
-            if let last = store.loadPosition() {
-                routes = [Route(path: last.path, offset: last.offset)]
-            } else if let first = orderedPaths.first {
+            if routes.isEmpty, let first = orderedPaths.first {
                 // 首次启动直接进第一页，不显示空白占位
                 routes = [Route(path: first)]
             }
