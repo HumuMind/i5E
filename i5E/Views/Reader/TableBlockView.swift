@@ -34,15 +34,26 @@ struct TableBlockView: View {
             - TableLayoutCalculator.horizontalPadding
         var widths = TableLayoutCalculator.widths(
             normalized, fontSize: size, available: available)
-        // 源页给表格标了 w-100：按比例铺满可用宽度，而不是保持内容宽度
-        if block.cls?.contains("w-100") == true {
+        // 源页给了显式宽度就按它缩放：px 折算成 pt，百分比按可用宽度算
+        if let target = targetWidth(available: available) {
             let total = widths.reduce(0, +)
-            if total > 0, total < available {
-                widths = widths.map { $0 * available / total }
+            if total > 0, abs(total - target) > 1 {
+                widths = widths.map { $0 * target / total }
             }
         }
         return Layout(
             block: normalized, widths: widths, totalWidth: widths.reduce(0, +), fontSize: size)
+    }
+
+    /// 源页给表格写的宽度（px 或百分比），没有就返回 nil（按内容宽度）。
+    private func targetWidth(available: CGFloat) -> CGFloat? {
+        if let percent = block.wp, percent > 0 {
+            return available * CGFloat(percent) / 100
+        }
+        if let px = block.w, px > 0 {
+            return min(CGFloat(px) * 0.75, available)
+        }
+        return nil
     }
 
     /// 源页里 basic / center / part 这几类表格没有边框；数据块里的表格同样无边框

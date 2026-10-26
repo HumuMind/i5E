@@ -83,6 +83,9 @@ public struct Block: Decodable, Sendable, Hashable {
     public var al: String?
     public var ind: Double?
     public var style: BlockStyle?
+    /// 表格显式宽度（源页 px）与百分比宽度
+    public var w: Int?
+    public var wp: Int?
 
     public var runsOrEmpty: [Run] { runs ?? [] }
     public var blocksOrEmpty: [Block] { blocks ?? [] }

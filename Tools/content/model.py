@@ -411,15 +411,36 @@ class Builder:
             if row_bg:
                 row["bg"] = row_bg
             rows.append(row)
+        width_px, width_pct = _table_width(el)
         caption = ""
         cap = el.find("caption")
         if cap is not None:
             # 源页 caption 里常有换行，折叠成单空格，否则渲染时会被当硬换行
             caption = clean_text("".join(cap.itertext())).strip()
         tb = {"type": "table", "rows": rows, "caption": caption}
+        if width_px:
+            tb["w"] = width_px
+        if width_pct:
+            tb["wp"] = width_pct
         if _cls(el):
             tb["cls"] = _cls(el)
         return tb
+
+_WIDTH_PX = re.compile(r"WIDTH\s*:\s*(\d+)\s*(?:px)?", re.I)
+_WIDTH_PCT = re.compile(r"WIDTH\s*:\s*(\d+)\s*%", re.I)
+
+
+def _table_width(el) -> tuple[int | None, int | None]:
+    """表格的显式宽度：`(px, 百分比)`。源页里 1,365 张表写了 px、709 张写了百分比。"""
+    style = el.get("style") or ""
+    pct = _WIDTH_PCT.search(style)
+    if pct:
+        return None, int(pct.group(1))
+    px = _WIDTH_PX.search(style)
+    if px:
+        return int(px.group(1)), None
+    return None, None
+
 
 class _TextHolder:
     """把裸文本包成可递归的最小节点。"""
