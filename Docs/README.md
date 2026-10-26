@@ -67,4 +67,5 @@
 | I31 | 状态与搜索 | [0038](decisions/0038-state-and-search.md) · 已定（展开记忆 + 搜索面板） |
 | I32 | 内容版本 | [0039](decisions/0039-content-version.md) · 已定（设置页显示上游版本） |
 | I33 | 启动自检 | [0040](decisions/0040-integrity-check.md) · 已定（quick_check + 重装指引） |
+| I34 | 搜索质量 | [0041](decisions/0041-search-ranking.md) · 已定（标题优先排序） |
 

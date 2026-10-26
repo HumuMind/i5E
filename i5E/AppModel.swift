@@ -101,6 +101,10 @@ final class AppModel {
             showDrawer = UserDefaults.standard.bool(forKey: "openDrawer")
             showSearch = UserDefaults.standard.bool(forKey: "openSearch")
             showSettings = UserDefaults.standard.bool(forKey: "openSettings")
+            if let seeded = UserDefaults.standard.string(forKey: "searchQuery"), !seeded.isEmpty {
+                showSearch = true
+                updateQuery(seeded)
+            }
 
             // 调试与截图用：`-openPage <路径>` 直接打开某一页
             if let path = UserDefaults.standard.string(forKey: "openPage"), !path.isEmpty {
@@ -348,6 +352,12 @@ final class AppModel {
         searchTask?.cancel()
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
+            results = []
+            isSearching = false
+            return
+        }
+        // 单字查询在中文里几乎命中全库，除了噪音没有信息量
+        guard trimmed.count >= 2 else {
             results = []
             isSearching = false
             return

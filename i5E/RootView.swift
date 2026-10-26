@@ -351,8 +351,11 @@ struct SearchPanel: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
-    @State private var query = ""
     @State private var tab: Tab = .search
+
+    private var queryBinding: Binding<String> {
+        Binding(get: { model.query }, set: { model.updateQuery($0) })
+    }
     @FocusState private var focused: Bool
 
     private enum Tab: String, CaseIterable, Identifiable {
@@ -399,7 +402,7 @@ struct SearchPanel: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(theme.muted)
-                TextField("搜索正文", text: $query)
+                TextField("搜索正文", text: queryBinding)
                     .textFieldStyle(.plain)
                     .focused($focused)
                     .accessibilityIdentifier("sidebar.search")
@@ -407,10 +410,10 @@ struct SearchPanel: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     #endif
-                    .onSubmit { model.recordSearch(query) }
-                if !query.isEmpty {
+                    .onSubmit { model.recordSearch(model.query) }
+                if !model.query.isEmpty {
                     Button {
-                        query = ""
+                        model.updateQuery("")
                     } label: {
                         Image(systemName: "xmark.circle.fill").foregroundStyle(theme.muted)
                     }
@@ -422,11 +425,14 @@ struct SearchPanel: View {
             .padding(.vertical, 8)
             .background(theme.background, in: .rect(cornerRadius: 8))
             .padding(.horizontal, 16)
-            .onChange(of: query) { _, newValue in model.updateQuery(newValue) }
             .onChange(of: model.searchFocusToken) { focused = true }
 
-            if query.isEmpty {
+            if model.query.isEmpty {
                 historyList
+            } else if model.query.trimmingCharacters(in: .whitespacesAndNewlines).count < 2 {
+                ContentUnavailableView(
+                    "再输入一个字", systemImage: "character.cursor.ibeam",
+                    description: Text("单个字在中文里会命中几乎每一页"))
             } else {
                 SearchResultsView()
             }
@@ -439,7 +445,6 @@ struct SearchPanel: View {
                 Section("最近搜索") {
                     ForEach(model.searchHistory, id: \.self) { term in
                         Button {
-                            query = term
                             model.updateQuery(term)
                         } label: {
                             HStack(spacing: 8) {

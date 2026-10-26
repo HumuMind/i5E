@@ -101,6 +101,27 @@ def _downscale(path: Path, max_width: int = MAX_IMAGE_WIDTH) -> bool:
         return False
 
 
+def _heading_texts(blocks: list[dict]) -> list[str]:
+    """收集页面里所有标题块的文字。"""
+    out: list[str] = []
+    for block in blocks:
+        kind = block.get("type")
+        if kind == "h":
+            text = "".join(run.get("t") or "" for run in block.get("runs") or []).strip()
+            if text:
+                out.append(text)
+        elif kind in ("div", "quote"):
+            out.extend(_heading_texts(block.get("blocks") or []))
+        elif kind == "list":
+            for item in block.get("items") or []:
+                out.extend(_heading_texts(item.get("blocks") or []))
+        elif kind == "table":
+            for row in block.get("rows") or []:
+                for cell in row.get("cells") or []:
+                    out.extend(_heading_texts(cell.get("blocks") or []))
+    return out
+
+
 def copy_images(records: list[dict], image_root: Path, dest: Path) -> dict:
     used = sorted({p for r in records for p in (r.get("_check", {}).get("images_used") or {})})
     dest.mkdir(parents=True, exist_ok=True)
@@ -143,8 +164,15 @@ def build(records: list[dict], toc: dict, info: dict, out_path: Path,
         "CREATE VIRTUAL TABLE search USING fts5(body, content='', detail=none,"
         " tokenize='unicode61')"
     )
+    # 标题索引：页面标题 + 各级小标题。用于把"标题命中"的结果排在正文命中之前。
+    con.execute("CREATE TABLE headings(id INTEGER PRIMARY KEY, page_id INTEGER NOT NULL,"
+                " text TEXT NOT NULL)")
+    con.execute(
+        "CREATE VIRTUAL TABLE headings_search USING fts5(body, content='', detail=none,"
+        " tokenize='unicode61')"
+    )
 
-    pages, fts = [], []
+    pages, fts, headings, headings_fts = [], [], [], []
     digest = hashlib.sha256()
     for i, r in enumerate(records, 1):
         blob = zlib.compress(
@@ -157,11 +185,19 @@ def build(records: list[dict], toc: dict, info: dict, out_path: Path,
                       json.dumps(r.get("style") or {}, ensure_ascii=False),
                       json.dumps(r.get("css") or [], ensure_ascii=False), blob))
         fts.append((i, tokens(text)))
+        for label in [r.get("title") or ""] + _heading_texts(r["blocks"]):
+            if not label.strip():
+                continue
+            headings.append((len(headings) + 1, i, label))
+            headings_fts.append((len(headings), tokens(label)))
 
     con.executemany(
         "INSERT INTO pages(id,path,title,style,css,blocks) VALUES(?,?,?,?,?,?)", pages)
     con.executemany("INSERT INTO search(rowid, body) VALUES(?,?)", fts)
     con.execute("INSERT INTO search(search) VALUES('optimize')")
+    con.executemany("INSERT INTO headings(id,page_id,text) VALUES(?,?,?)", headings)
+    con.executemany("INSERT INTO headings_search(rowid, body) VALUES(?,?)", headings_fts)
+    con.execute("INSERT INTO headings_search(headings_search) VALUES('optimize')")
 
     meta = {
         "format": FORMAT_VERSION,

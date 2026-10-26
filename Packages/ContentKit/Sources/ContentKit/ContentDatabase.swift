@@ -95,11 +95,52 @@ public final class ContentDatabase: Sendable {
         guard !needle.isEmpty else { return [] }
 
         return try await dbQueue.read { db in
+            var hits: [SearchHit] = []
+            var seen = Set<Int64>()
+
+            // 1) 标题命中优先：页面标题或小标题里出现查询词
+            let headingRows = try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT h.page_id AS pid, h.text AS label
+                    FROM headings_search s JOIN headings h ON h.id = s.rowid
+                    WHERE headings_search MATCH ?
+                    ORDER BY (h.text LIKE ? ) DESC, length(h.text), h.page_id
+                    LIMIT 200
+                    """, arguments: [expression, needle + "%"])
+            for row in headingRows {
+                let pid: Int64 = row["pid"]
+                guard !seen.contains(pid) else { continue }
+                guard
+                    let page = try Row.fetchOne(
+                        db, sql: "SELECT id, path, title, blocks FROM pages WHERE id = ?",
+                        arguments: [pid])
+                else { continue }
+                let blocks = try JSONDecoder().decode(
+                    [Block].self, from: try Zlib.inflate(page["blocks"] as Data))
+                let label: String = row["label"]
+                guard label.range(of: needle, options: .caseInsensitive) != nil else { continue }
+
+                let blockIndex =
+                    blocks.firstIndex { block in
+                        block.type == "h"
+                            && block.runsOrEmpty.map { $0.t ?? "" }.joined()
+                                .range(of: needle, options: .caseInsensitive) != nil
+                    } ?? 0
+                hits.append(
+                    SearchHit(
+                        pageID: page["id"], path: page["path"], title: page["title"] ?? "",
+                        snippet: label, blockIndex: blockIndex))
+                seen.insert(pid)
+                if hits.count >= limit { return hits }
+            }
+
+            // 2) 正文命中
             let ids = try Int64.fetchAll(
                 db, sql: "SELECT rowid FROM search WHERE search MATCH ?", arguments: [expression])
 
-            var hits: [SearchHit] = []
             for id in ids {
+                guard !seen.contains(id) else { continue }
                 guard
                     let row = try Row.fetchOne(
                         db, sql: "SELECT id, path, title, blocks FROM pages WHERE id = ?", arguments: [id])
@@ -117,6 +158,7 @@ public final class ContentDatabase: Sendable {
                     SearchHit(
                         pageID: row["id"], path: row["path"],
                         title: row["title"] ?? "", snippet: snippet, blockIndex: blockIndex))
+                seen.insert(id)
                 if hits.count >= limit { break }
             }
             return hits

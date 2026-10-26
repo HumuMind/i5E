@@ -54,3 +54,20 @@ final class PerfTests: XCTestCase {
         }
     }
 }
+
+/// 搜索质量探针：把结果数量和耗时打出来，便于判断是否需要限制最短查询。
+final class SearchQualityTests: XCTestCase {
+    func testProbe() async throws {
+        guard let path = ProcessInfo.processInfo.environment["CONTENT_DB"] else {
+            throw XCTSkip("未设置 CONTENT_DB")
+        }
+        let db = try ContentDatabase(url: URL(fileURLWithPath: path))
+        for query in ["的", "火", "火球", "火球术", "AC", "先攻"] {
+            let start = Date()
+            let hits = try await db.search(query, limit: 80)
+            let ms = Date().timeIntervalSince(start) * 1000
+            let head = hits.prefix(3).map(\.title).joined(separator: " | ")
+            print(String(format: "  「%@」 %3d 条 · %5.0f ms · %@", query, hits.count, ms, head))
+        }
+    }
+}
