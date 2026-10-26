@@ -210,9 +210,12 @@ public enum TableLayoutCalculator {
             let spare = available - total
             return natural.enumerated().map { index, width in
                 guard index < content.count else { return width }
-                let cap = CGFloat(content[index]) * fontSize / 2 + horizontalPadding
+                let estimated = CGFloat(content[index]) * fontSize / 2 + horizontalPadding
+                // 上限不能低于"不可断词"的实测下限，否则 d6 会被压回两行
+                let floor = index < minimums.count ? minimums[index] : 0
+                let cap = max(estimated, floor)
                 let share = spare * extra[index] / totalExtra
-                return min(cap, width + share)
+                return min(cap, max(floor, width + share))
             }
         }
 
@@ -222,9 +225,22 @@ public enum TableLayoutCalculator {
             return max(floor, width * scale)
         }
 
+        // 第一轮已经把过宽的列压到下限；如果总和仍超出，只能从"高于下限的部分"里扣，
+        // 否则会把 d6 这种短词再压回换行。
         let sum = scaled.reduce(0, +)
         if sum > available {
-            scaled = scaled.map { $0 * available / sum }
+            let floors = scaled.indices.map { index in
+                index < minimums.count ? minimums[index] : 0
+            }
+            let slack = scaled.indices.map { max(0, scaled[$0] - floors[$0]) }
+            let totalSlack = slack.reduce(0, +)
+            if totalSlack > 0 {
+                let excess = sum - available
+                scaled = scaled.indices.map { index in
+                    let cut = excess * slack[index] / totalSlack
+                    return max(floors[index], scaled[index] - cut)
+                }
+            }
         }
         return scaled
     }
