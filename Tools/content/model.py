@@ -428,7 +428,15 @@ class Builder:
                 resolved = resolve_image(self.page_path, src)
                 if resolved:
                     self.images_used[resolved] = self.images_used.get(resolved, 0) + 1
-                    out.append({"img": resolved, "alt": el.get("alt") or ""})
+                    run = {"img": resolved, "alt": el.get("alt") or ""}
+                    for key in ("width", "height"):
+                        value = (el.get(key) or "").strip().rstrip("px")
+                        if value.isdigit():
+                            run["w" if key == "width" else "h"] = int(value)
+                    align = (el.get("align") or "").strip().lower()
+                    if align in ("left", "right"):
+                        run["align"] = align
+                    out.append(run)
                 else:
                     self.images_dropped += 1
                 return

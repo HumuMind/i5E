@@ -75,4 +75,5 @@
 | I39 | class 样式 | [0046](decisions/0046-class-styles.md) · 已定（stat-block 系列 + 空列折叠） |
 | I40 | 表格断行 | [0047](decisions/0047-table-min-width.md) · 已定（按实测词宽定下限） |
 | I41 | 内联 CSS | [0048](decisions/0048-inline-css.md) · 已定（解析标题颜色/字重） |
+| I42 | 图片与表格 | [0049](decisions/0049-images-and-tables.md) · 已定（图片尺寸/列宽放宽/分组行） |
 

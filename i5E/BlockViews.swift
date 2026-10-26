@@ -219,8 +219,27 @@ private struct ParagraphView: View {
 
 /// 从 App 包里按拍平后的文件名取图。缺图返回空视图，不留占位。
 struct ContentImageView: View {
+    #if canImport(UIKit)
+        typealias PlatformImage = UIImage
+    #else
+        typealias PlatformImage = NSImage
+    #endif
+
     let run: Run
     var maxWidth: CGFloat
+
+    /// 源页用 px 标注尺寸，按 96dpi 折算成 pt；没标注就铺满可用宽度。
+    private func displayWidth(for image: ContentImageView.PlatformImage) -> CGFloat {
+        let scale: CGFloat = 0.75
+        if let height = run.h, height > 0, image.size.height > 0 {
+            let width = CGFloat(height) * scale * image.size.width / image.size.height
+            return min(width, maxWidth)
+        }
+        if let width = run.w, width > 0 {
+            return min(CGFloat(width) * scale, maxWidth)
+        }
+        return maxWidth
+    }
 
     var body: some View {
         #if canImport(UIKit)
@@ -228,7 +247,8 @@ struct ContentImageView: View {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: maxWidth, alignment: .leading)
+                    .frame(width: displayWidth(for: image))
+                    .frame(maxWidth: .infinity, alignment: run.align == "right" ? .trailing : .leading)
                     .clipShape(.rect(cornerRadius: 4))
                     .accessibilityLabel(run.alt?.isEmpty == false ? run.alt! : "插图")
             }
@@ -237,7 +257,8 @@ struct ContentImageView: View {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: maxWidth, alignment: .leading)
+                    .frame(width: displayWidth(for: image))
+                    .frame(maxWidth: .infinity, alignment: run.align == "right" ? .trailing : .leading)
                     .clipShape(.rect(cornerRadius: 4))
             }
         #endif
@@ -320,42 +341,44 @@ private struct TableBlockView: View {
 
     @Environment(\.readingTheme) private var theme
 
-    /// 去掉整列空白的列后再排版（源页用空 td 占位、用 5px 列做间隔）
-    private var normalized: Block { TableLayoutCalculator.normalize(block) }
+    /// 一次算好的排版结果。
+    ///
+    /// 列宽原来写成计算属性，每渲染一个单元格就重算一遍；而算一次要对全表做
+    /// CoreText 测量，一百多行的表格因此变成平方级，卡好几秒。
+    private struct Layout {
+        var block: Block
+        var widths: [CGFloat]
+        var totalWidth: CGFloat
+        var fontSize: CGFloat
+    }
 
-    private var columnCount: Int { TableLayoutCalculator.columnCount(normalized) }
+    private var layout: Layout {
+        let normalized = TableLayoutCalculator.normalize(block)
+        let count = TableLayoutCalculator.columnCount(normalized)
+        let size: CGFloat =
+            switch count {
+            case ...2: metrics.bodySize
+            case 3...4: 16
+            default: 13
+            }
+        let widths = TableLayoutCalculator.widths(
+            normalized, fontSize: size,
+            available: min(availableWidth, metrics.measure)
+                - TableLayoutCalculator.horizontalPadding)
+        return Layout(
+            block: normalized, widths: widths, totalWidth: widths.reduce(0, +), fontSize: size)
+    }
 
     /// 源页里 basic / center / part 这几类表格没有边框；数据块里的表格同样无边框
     private var isBorderless: Bool {
         ClassStyle.isBorderlessTable(block.cls) || ancestors.contains("stat-block")
     }
 
-    private var fontSize: CGFloat {
-        switch columnCount {
-        case ...2: metrics.bodySize
-        case 3...4: 16
-        default: 13
-        }
-    }
-
-    private var widths: [CGFloat] {
-        TableLayoutCalculator.widths(
-            normalized, fontSize: fontSize,
-            available: min(availableWidth, metrics.measure) - TableLayoutCalculator.horizontalPadding)
-    }
-
-    private var totalWidth: CGFloat { widths.reduce(0, +) }
-
-    /// 单行单列的表格在源页里是排版容器（`<TABLE><tr><td>…整页…</td></tr></TABLE>`），
-    /// 不是数据表：直接铺开内容，不画边框、不按列宽压缩。
-    private var isLayoutTable: Bool {
-        let rows = normalized.rows ?? []
-        return rows.count == 1 && (rows.first?.cells.count ?? 0) == 1
-    }
-
     @ViewBuilder
     var body: some View {
-        if isLayoutTable, let cell = normalized.rows?.first?.cells.first {
+        let layout = layout
+        // 单行单列的表格在源页里是排版容器，不是数据表
+        if layout.block.rows?.count == 1, let cell = layout.block.rows?.first?.cells.first {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(cell.blocks.enumerated()), id: \.offset) { _, inner in
                     BlockView(
@@ -365,14 +388,14 @@ private struct TableBlockView: View {
             }
             .padding(.vertical, 6)
         } else {
-            tableChrome
+            tableChrome(layout)
         }
     }
 
-    private var tableChrome: some View {
+    private func tableChrome(_ layout: Layout) -> some View {
         HStack(spacing: 0) {
-            tableBody
-                .frame(width: totalWidth, alignment: .leading)
+            tableBody(layout)
+                .frame(width: layout.totalWidth, alignment: .leading)
                 .overlay {
                     if !isBorderless {
                         Rectangle().stroke(theme.border, lineWidth: 0.5)
@@ -385,29 +408,53 @@ private struct TableBlockView: View {
         .padding(.bottom, 12)
     }
 
-    private var tableBody: some View {
+    private func tableBody(_ layout: Layout) -> some View {
         LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(Array((normalized.rows ?? []).enumerated()), id: \.offset) { _, row in
-                HStack(spacing: 0) {
-                    ForEach(Array(row.cells.enumerated()), id: \.offset) { index, cell in
-                        cellView(cell, at: index)
+            ForEach(Array((layout.block.rows ?? []).enumerated()), id: \.offset) { _, row in
+                if isGroupRow(row) {
+                    groupRow(row, layout: layout)
+                } else {
+                    HStack(spacing: 0) {
+                        ForEach(Array(row.cells.enumerated()), id: \.offset) { index, cell in
+                            cellView(cell, at: index, layout: layout)
+                        }
                     }
+                    .frame(width: layout.totalWidth, alignment: .leading)
+                    .background(rowColor(row))
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(rowLabel(row, layout: layout))
                 }
-                .frame(width: totalWidth, alignment: .leading)
-                .background(rowColor(row))
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(rowLabel(row))
             }
         }
     }
 
+    /// 分组行：只有第一格有字、其余为空、文字不长（如装备表里的「弹药」「奥术法器」）。
+    private func isGroupRow(_ row: ContentKit.TableRow) -> Bool {
+        guard row.cells.count >= 2 else { return false }
+        let others = row.cells.dropFirst()
+        guard others.allSatisfy({ $0.plainText.trimmingCharacters(in: .whitespaces).isEmpty })
+        else { return false }
+        let first = row.cells[0].plainText.trimmingCharacters(in: .whitespaces)
+        return !first.isEmpty && first.count <= 18
+    }
+
+    private func groupRow(_ row: ContentKit.TableRow, layout: Layout) -> some View {
+        Text(row.cells[0].plainText.trimmingCharacters(in: .whitespaces))
+            .font(.system(size: layout.fontSize, weight: .semibold))
+            .foregroundStyle(theme.text)
+            .frame(width: layout.totalWidth, alignment: .leading)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 5)
+            .background(theme.border.opacity(0.35))
+    }
+
     /// 表格行的朗读文本：「物品名：火球术，环阶：三环」。
-    private func rowLabel(_ row: ContentKit.TableRow) -> String {
+    private func rowLabel(_ row: ContentKit.TableRow, layout: Layout) -> String {
         row.cells.enumerated().compactMap { index, cell in
             let text = cell.blocks.compactMap { $0.runsOrEmpty.compactMap(\.t).joined() }
                 .joined().trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { return nil }
-            let header = block.rows?.first?.cells
+            let header = layout.block.rows?.first?.cells
             let name = (header.flatMap { index < $0.count ? $0[index] : nil })
                 .map { $0.blocks.compactMap { $0.runsOrEmpty.compactMap(\.t).joined() }.joined() }
             return (name?.isEmpty == false ? name! + "：" : "") + text
@@ -426,7 +473,6 @@ private struct TableBlockView: View {
     }
 
     private func cellBackground(_ cell: TableCell) -> Color {
-        // 优先用源页的 class 底色（属性表 c1–c4 的斑马纹），其次是内联 bgcolor
         if let hex = ClassStyle.cellBackground(cell.cls) {
             return background(from: hex)
         }
@@ -434,26 +480,28 @@ private struct TableBlockView: View {
         return background(from: hex)
     }
 
-    private func width(at index: Int, span: Int) -> CGFloat {
+    private func width(at index: Int, span: Int, layout: Layout) -> CGFloat {
+        let widths = layout.widths
         let upper = min(widths.count, index + span)
         guard index < upper else { return widths.last ?? 0 }
         return widths[index..<upper].reduce(0, +)
     }
 
-    private func cellView(_ cell: TableCell, at index: Int) -> some View {
+    private func cellView(_ cell: TableCell, at index: Int, layout: Layout) -> some View {
         let span = max(1, cell.colspan ?? 1)
         return VStack(alignment: .leading, spacing: 3) {
             ForEach(Array(cell.blocks.enumerated()), id: \.offset) { _, inner in
                 Text(
                     AttributedText.make(
-                        inner.runsOrEmpty, size: fontSize, bold: cell.header == true, theme: theme)
+                        inner.runsOrEmpty, size: layout.fontSize, bold: cell.header == true,
+                        theme: theme)
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 5)
-        .frame(width: width(at: index, span: span), alignment: .topLeading)
+        .frame(width: width(at: index, span: span, layout: layout), alignment: .topLeading)
         .background(cellBackground(cell))
         .overlay(Rectangle().stroke(theme.border, lineWidth: 0.5))
     }

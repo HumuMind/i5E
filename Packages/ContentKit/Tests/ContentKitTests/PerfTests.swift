@@ -71,3 +71,23 @@ final class SearchQualityTests: XCTestCase {
         }
     }
 }
+
+final class HeavyPageTests: XCTestCase {
+    func testEquipmentPageLayout() async throws {
+        guard let path = ProcessInfo.processInfo.environment["CONTENT_DB"] else {
+            throw XCTSkip("未设置 CONTENT_DB")
+        }
+        let db = try ContentDatabase(url: URL(fileURLWithPath: path))
+        let start = Date()
+        let page = try await db.page(path: "玩家手册/装备/冒险用品.html")
+        let blocks = try XCTUnwrap(page).blocks
+        print(String(format: "  读取：%.0f ms · 块数 %d", Date().timeIntervalSince(start) * 1000, blocks.count))
+
+        let t2 = Date()
+        for block in blocks where block.type == "table" {
+            let normalized = TableLayoutCalculator.normalize(block)
+            _ = TableLayoutCalculator.widths(normalized, fontSize: 13, available: 700)
+        }
+        print(String(format: "  表格排版：%.0f ms", Date().timeIntervalSince(t2) * 1000))
+    }
+}

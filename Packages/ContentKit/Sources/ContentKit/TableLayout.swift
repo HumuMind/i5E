@@ -103,6 +103,27 @@ public enum TableLayoutCalculator {
         return result
     }
 
+    /// 每列**不设上限**的内容宽度（单位：半角字符宽）。
+    /// 用于在表格还没占满可用宽度时，把多余空间分给需要换行的列。
+    public static func contentUnits(_ block: Block) -> [Double] {
+        let count = columnCount(block)
+        guard count > 0 else { return [] }
+        var units = Array(repeating: 0.0, count: count)
+        for row in block.rows ?? [] {
+            var column = 0
+            for cell in row.cells {
+                let span = max(1, cell.colspan ?? 1)
+                let width = displayUnits(cell.plainText)
+                let share = width / Double(span)
+                for offset in 0..<span where column + offset < count {
+                    units[column + offset] = max(units[column + offset], share)
+                }
+                column += span
+            }
+        }
+        return units
+    }
+
     /// 每列"不能被断开的最短宽度"（pt）。
     ///
     /// 拉丁词与数字串（`PHB24`、`1d6+2`）不能从中间折行，列宽再紧也得容下它们。
@@ -178,7 +199,22 @@ public enum TableLayoutCalculator {
             return max(estimated, floor)
         }
         let total = natural.reduce(0, +)
-        guard total > available, available > 0 else { return natural }
+        guard available > 0 else { return natural }
+        if total < available {
+            // 还没占满可用宽度：把多余空间分给"内容比当前列宽更长"的列，
+            // 避免明明有地方却把长条目折成两三行。
+            let content = contentUnits(block)
+            let extra = zip(content, units).map { max(0, $0 - $1) }
+            let totalExtra = extra.reduce(0, +)
+            guard totalExtra > 0 else { return natural }
+            let spare = available - total
+            return natural.enumerated().map { index, width in
+                guard index < content.count else { return width }
+                let cap = CGFloat(content[index]) * fontSize / 2 + horizontalPadding
+                let share = spare * extra[index] / totalExtra
+                return min(cap, width + share)
+            }
+        }
 
         let scale = available / total
         var scaled = natural.enumerated().map { index, width in
