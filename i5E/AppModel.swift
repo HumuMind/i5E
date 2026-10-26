@@ -126,9 +126,10 @@ final class AppModel {
                 pageCount = count
             }
             if let last = store.loadPosition() {
-                routes = [
-                    Route(path: last.path, offset: last.offset)
-                ]
+                routes = [Route(path: last.path, offset: last.offset)]
+            } else if let first = orderedPaths.first {
+                // 首次启动直接进第一页，不显示空白占位
+                routes = [Route(path: first)]
             }
             phase = .ready
         } catch {
@@ -140,8 +141,13 @@ final class AppModel {
 
     // MARK: - 导航
 
+    /// 打开一页。目录选页与链接跳转都追加到历史，返回按钮才有东西可回。
     func show(_ route: Route) {
-        routes = [route]
+        if routes.last?.path == route.path, route.offset == nil, route.blockIndex == nil {
+            return
+        }
+        routes.append(route)
+        if routes.count > 50 { routes.removeFirst(routes.count - 50) }
     }
 
     /// 页面所属的章节链，比如「玩家手册2024 › 第一章：进行游戏 › 玩家还是DM？」。
@@ -318,7 +324,7 @@ final class AppModel {
     }
 
     func push(_ route: Route) {
-        routes.append(route)
+        show(route)
     }
 
     func page(path: String) async throws -> Page? {
