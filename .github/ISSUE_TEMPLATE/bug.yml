@@ -1,0 +1,51 @@
+name: 问题反馈
+description: 应用或内容有问题
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。内容本身的错误（错字、规则与官方不一致）请提交给上游项目，
+        这个仓库只处理应用与转换过程中的问题。
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 问题类型
+      options:
+        - 应用：显示 / 排版 / 交互
+        - 应用：崩溃或卡死
+        - 内容：转换后文字或结构与源页不一致
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开 …
+        2. 点击 …
+        3. 看到 …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望的结果
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版本信息
+      description: 设置页里的「应用版本」与「上游版本」两行，直接抄过来即可
+      placeholder: 应用 0.1.0 (39) · 上游 81b587c51 · 2026-10-15
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: 设备与系统
+      placeholder: iPad Pro 11 (M4) · iPadOS 27.0
+    validations:
+      required: true

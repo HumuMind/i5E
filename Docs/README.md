@@ -69,4 +69,6 @@
 | I33 | 启动自检 | [0040](decisions/0040-integrity-check.md) · 已定（quick_check + 重装指引） |
 | I34 | 搜索质量 | [0041](decisions/0041-search-ranking.md) · 已定（标题优先排序） |
 | I35 | 缺图提示 | [0042](decisions/0042-missing-images.md) · 不做（保持静默） |
+| I36 | 上游同步 | [0043](decisions/0043-upstream-sync.md) · 已定（一条命令） |
+| I37 | Issue 模板 | [0044](decisions/0044-issue-template.md) · 已备好 |
 
