@@ -44,7 +44,9 @@ import ContentKit
                     .paragraphStyle: paragraph,
                     .foregroundColor: color(for: run, theme: theme),
                 ]
-                if run.u == 1 { attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue }
+                if run.u == 1 || run.href != nil {
+                    attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
+                }
                 // 上标/下标：字号缩到 72%，并相对基线升降
                 if run.sup == 1 || run.sub == 1 {
                     attributes[.font] = font(for: run, size: fontSize * 0.72)

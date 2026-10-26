@@ -30,7 +30,8 @@ enum AttributedText {
                 if hit { piece.backgroundColor = Color.accentColor.opacity(0.22) }
                 if let href = run.href, let url = URL(string: href) { piece.link = url }
                 if !intents.isEmpty { piece.inlinePresentationIntent = intents }
-                if run.u == 1 { piece.underlineStyle = .single }
+                // 链接一律带下划线：源页靠它表达"可点"，我们的颜色本身不够醒目
+                if run.u == 1 || run.href != nil { piece.underlineStyle = .single }
                 // 上标/下标：字号缩到 72%，并相对基线升降
                 if run.sup == 1 || run.sub == 1 {
                     piece.font = Font.system(size: size * 0.72)
@@ -55,6 +56,8 @@ enum AttributedText {
         if let semantic, let rgb = RGB(hexOrRGB: semantic) {
             return theme.adjusted(rgb)
         }
+        // 普通链接没有语义标记，之前会落到正文色（看起来完全不像链接）
+        if run.href != nil { return theme.link }
         return defaultColor ?? theme.text
     }
 
