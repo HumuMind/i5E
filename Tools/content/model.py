@@ -414,7 +414,8 @@ class Builder:
         caption = ""
         cap = el.find("caption")
         if cap is not None:
-            caption = "".join(cap.itertext()).strip()
+            # 源页 caption 里常有换行，折叠成单空格，否则渲染时会被当硬换行
+            caption = clean_text("".join(cap.itertext())).strip()
         tb = {"type": "table", "rows": rows, "caption": caption}
         if _cls(el):
             tb["cls"] = _cls(el)

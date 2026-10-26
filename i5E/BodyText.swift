@@ -45,6 +45,11 @@ import ContentKit
                     .foregroundColor: color(for: run, theme: theme),
                 ]
                 if run.u == 1 { attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue }
+                // 上标/下标：字号缩到 72%，并相对基线升降
+                if run.sup == 1 || run.sub == 1 {
+                    attributes[.font] = font(for: run, size: fontSize * 0.72)
+                    attributes[.baselineOffset] = run.sup == 1 ? fontSize * 0.38 : -fontSize * 0.18
+                }
                 if run.s == 1 { attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
 
                 for (segment, hit) in AttributedText.split(text, by: highlight) {

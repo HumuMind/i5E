@@ -56,4 +56,10 @@ def heading_styles(html_text: str) -> dict[int, dict]:
                         found.setdefault(level, {})["c"] = color
                 elif prop == "font-weight" and value.lower() in ("bold", "bolder", "700", "800", "900"):
                     found.setdefault(level, {})["b"] = 1
+                elif prop in ("border-bottom", "border") and "none" not in value.lower():
+                    # 标题下划线：源页大量使用，颜色可能写在值的任意位置
+                    color = next(
+                        (_normalize_color(token) for token in value.replace(",", " ").split()
+                         if _normalize_color(token)), None)
+                    found.setdefault(level, {})["bd"] = color or "1"
     return found

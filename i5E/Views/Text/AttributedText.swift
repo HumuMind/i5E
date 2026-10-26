@@ -31,6 +31,11 @@ enum AttributedText {
                 if let href = run.href, let url = URL(string: href) { piece.link = url }
                 if !intents.isEmpty { piece.inlinePresentationIntent = intents }
                 if run.u == 1 { piece.underlineStyle = .single }
+                // 上标/下标：字号缩到 72%，并相对基线升降
+                if run.sup == 1 || run.sub == 1 {
+                    piece.font = Font.system(size: size * 0.72)
+                    piece.baselineOffset = run.sup == 1 ? size * 0.38 : -size * 0.18
+                }
                 if run.s == 1 { piece.strikethroughStyle = .single }
                 result.append(piece)
             }

@@ -63,6 +63,8 @@ public struct TableRow: Decodable, Sendable, Hashable {
 public struct BlockStyle: Decodable, Sendable, Hashable {
     public var c: String?
     public var b: Int?
+    /// 标题下划线颜色；"1" 表示有下划线但没指定颜色
+    public var bd: String?
 }
 
 public struct Block: Decodable, Sendable, Hashable {

@@ -121,6 +121,24 @@ struct BlockView: View {
         return capped * (1 - style.marginFraction * 2)
     }
 
+    /// 标题下划线：优先用页面 CSS 里声明的颜色，其次数据块标题的暗红。
+    @ViewBuilder
+    private var headingUnderline: some View {
+        if let border = block.style?.bd {
+            let color =
+                (border == "1" ? nil : RGB(hexOrRGB: border).map(theme.adjusted)) ?? theme.border
+            Rectangle()
+                .fill(color)
+                .frame(height: 1)
+                .padding(.top, 4)
+        } else if ClassStyle.isStatBlockHeading(ancestors: ancestors), (block.level ?? 0) >= 5 {
+            Rectangle()
+                .fill(RGB(hexOrRGB: "#800000").map(theme.adjusted) ?? theme.accent)
+                .frame(height: 1)
+                .padding(.top, 2)
+        }
+    }
+
     private func containerFill(_ style: ClassStyle.Container?) -> Color {
         guard let style else { return .clear }
         // 深色下改用阅读面色：源页的浅色底在深色主题里会刺眼

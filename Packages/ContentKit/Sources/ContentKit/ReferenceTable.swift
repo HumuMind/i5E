@@ -57,6 +57,9 @@ public struct ReferenceTable: Sendable {
 public enum ReferenceTableExtractor {
 
     public static let minimumRows = 50
+    /// 列数下限。两列的大表（如 d100 姓名表）不是速查表——卡片化后每张只有两格，
+    /// 反而比表格更难读。
+    public static let minimumColumns = 3
 
     public static func extract(from page: Page) -> ReferenceTable? {
         var best: (table: Block, rows: Int)?
@@ -91,6 +94,8 @@ public enum ReferenceTableExtractor {
 
         let rows = body.filter { row in row.contains { !$0.text.isEmpty } }
         guard rows.count >= minimumRows else { return nil }
+        let columns = rows.map(\.count).max() ?? 0
+        guard columns >= minimumColumns else { return nil }
         return ReferenceTable(title: page.title, headers: headers, rows: rows)
     }
 

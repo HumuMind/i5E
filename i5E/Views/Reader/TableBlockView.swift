@@ -29,10 +29,18 @@ struct TableBlockView: View {
             case 3...4: 16
             default: 13
             }
-        let widths = TableLayoutCalculator.widths(
-            normalized, fontSize: size,
-            available: min(availableWidth, metrics.measure(forAvailable: availableWidth))
-                - TableLayoutCalculator.horizontalPadding)
+        let available =
+            min(availableWidth, metrics.measure(forAvailable: availableWidth))
+            - TableLayoutCalculator.horizontalPadding
+        var widths = TableLayoutCalculator.widths(
+            normalized, fontSize: size, available: available)
+        // 源页给表格标了 w-100：按比例铺满可用宽度，而不是保持内容宽度
+        if block.cls?.contains("w-100") == true {
+            let total = widths.reduce(0, +)
+            if total > 0, total < available {
+                widths = widths.map { $0 * available / total }
+            }
+        }
         return Layout(
             block: normalized, widths: widths, totalWidth: widths.reduce(0, +), fontSize: size)
     }
@@ -61,6 +69,22 @@ struct TableBlockView: View {
     }
 
     private func tableChrome(_ layout: Layout) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let caption = block.caption, !caption.isEmpty {
+                // caption 用整行宽度居中：表格可能比它窄，挤在表格宽度里会折行
+                Text(caption)
+                    .font(.system(size: layout.fontSize, weight: .semibold))
+                    .foregroundStyle(theme.text)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+            tableRow(layout)
+        }
+        // 撑满可用宽度，caption 才有整行可居中（否则会跟着窄表格一起被压窄）
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func tableRow(_ layout: Layout) -> some View {
         HStack(spacing: 0) {
             tableBody(layout)
                 .frame(width: layout.totalWidth, alignment: .leading)
