@@ -72,4 +72,5 @@
 | I36 | 上游同步 | [0043](decisions/0043-upstream-sync.md) · 已定（一条命令） |
 | I37 | Issue 模板 | [0044](decisions/0044-issue-template.md) · 已备好 |
 | I38 | 崩溃与反馈 | [0045](decisions/0045-crash-reporting.md) · 不做自建上报 |
+| I39 | class 样式 | [0046](decisions/0046-class-styles.md) · 已定（stat-block 系列 + 空列折叠） |
 

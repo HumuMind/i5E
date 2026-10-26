@@ -5,6 +5,8 @@ import ContentKit
 struct BlockView: View {
     @Environment(\.readingMetrics) private var metrics
     let block: Block
+    /// 祖先容器的 class（`stat-block` 等），用于按源页样式渲染内部元素。
+    var ancestors: Set<String> = []
     var highlight: String?
     var availableWidth: CGFloat = ReadingMetrics.standard.measure
 
@@ -31,7 +33,7 @@ struct BlockView: View {
         case "list":
             ListBlockView(block: block, highlight: highlight, availableWidth: availableWidth)
         case "table":
-            TableBlockView(block: block, availableWidth: availableWidth)
+            TableBlockView(block: block, ancestors: ancestors, availableWidth: availableWidth)
         case "quote":
             HStack(alignment: .top, spacing: 12) {
                 Rectangle().fill(.quaternary).frame(width: 3)
@@ -44,11 +46,7 @@ struct BlockView: View {
             .padding(.vertical, 8)
             .padding(.bottom, 12)
         case "div":
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(block.blocksOrEmpty.enumerated()), id: \.offset) { _, inner in
-                    BlockView(block: inner, highlight: highlight, availableWidth: availableWidth)
-                }
-            }
+            container
         case "pre":
             Text(block.text ?? "")
                 .font(.system(size: 14, design: .monospaced))
@@ -66,10 +64,60 @@ struct BlockView: View {
     /// 上游 `style.css` 给标题规定的颜色。数据里只有内联色，
     /// 靠样式表来的这一层要在这里补上（见 0017 补记）。
     private var headingDefaultColor: Color? {
+        // 数据块里的 h5/h6 在源页是暗红（stat-block.css），不按普通标题的规则
+        if ClassStyle.isStatBlockHeading(ancestors: ancestors), (block.level ?? 0) >= 5 {
+            return RGB(hexOrRGB: "#800000").map(theme.adjusted)
+        }
         guard let hex = SourceStyle.headingColorHex(level: block.level ?? 2),
             let rgb = RGB(hexOrRGB: hex)
         else { return nil }
         return theme.adjusted(rgb)
+    }
+
+    /// 带样式的容器（stat-block / little-paper / HT）。没有已知 class 时只做纵向堆叠。
+    private var container: some View {
+        let childAncestors = ancestors.union(block.cls ?? [])
+        let style = ClassStyle.container(block.cls ?? [])
+        // 子块要按容器的内宽排版，否则表格会撑出边框被裁掉
+        let innerWidth: CGFloat = {
+            guard let style else { return availableWidth }
+            let capped = min(availableWidth, style.maxWidth ?? availableWidth)
+            return max(120, capped - style.padding * 2)
+        }()
+        return VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(block.blocksOrEmpty.enumerated()), id: \.offset) { _, inner in
+                BlockView(
+                    block: inner, ancestors: childAncestors, highlight: highlight,
+                    availableWidth: innerWidth)
+            }
+        }
+        .padding(style?.padding ?? 0)
+        .frame(maxWidth: style?.maxWidth, alignment: .leading)
+        .background(containerFill(style), in: .rect(cornerRadius: 2))
+        .overlay { containerBorder(style) }
+        .padding(.bottom, style == nil ? 0 : 14)
+    }
+
+    private func containerFill(_ style: ClassStyle.Container?) -> Color {
+        guard let style else { return .clear }
+        // 深色下改用阅读面色：源页的浅色底在深色主题里会刺眼
+        return theme.isDark ? theme.surface : Color(themeHex: style.background)
+    }
+
+    @ViewBuilder
+    private func containerBorder(_ style: ClassStyle.Container?) -> some View {
+        if let style {
+            let color = Color(themeHex: style.border)
+            if style.topBorderOnly {
+                VStack(spacing: 0) {
+                    Rectangle().fill(color).frame(height: style.borderWidth)
+                    Spacer(minLength: 0)
+                }
+            } else {
+                RoundedRectangle(cornerRadius: 2)
+                    .strokeBorder(color, lineWidth: style.borderWidth / 2)
+            }
+        }
     }
 
     private var heading: some View {
@@ -200,6 +248,8 @@ struct ContentImageView: View {
 private struct ListBlockView: View {
     @Environment(\.readingMetrics) private var metrics
     let block: Block
+    /// 祖先容器的 class（`stat-block` 等），用于按源页样式渲染内部元素。
+    var ancestors: Set<String> = []
     var highlight: String?
     var availableWidth: CGFloat = ReadingMetrics.standard.measure
 
@@ -245,11 +295,20 @@ private struct ListBlockView: View {
 private struct TableBlockView: View {
     @Environment(\.readingMetrics) private var metrics
     let block: Block
+    var ancestors: Set<String> = []
     var availableWidth: CGFloat
 
     @Environment(\.readingTheme) private var theme
 
-    private var columnCount: Int { TableLayoutCalculator.columnCount(block) }
+    /// 去掉整列空白的列后再排版（源页用空 td 占位、用 5px 列做间隔）
+    private var normalized: Block { TableLayoutCalculator.normalize(block) }
+
+    private var columnCount: Int { TableLayoutCalculator.columnCount(normalized) }
+
+    /// 源页里 basic / center / part 这几类表格没有边框；数据块里的表格同样无边框
+    private var isBorderless: Bool {
+        ClassStyle.isBorderlessTable(block.cls) || ancestors.contains("stat-block")
+    }
 
     private var fontSize: CGFloat {
         switch columnCount {
@@ -261,15 +320,31 @@ private struct TableBlockView: View {
 
     private var widths: [CGFloat] {
         TableLayoutCalculator.widths(
-            block, fontSize: fontSize,
+            normalized, fontSize: fontSize,
             available: min(availableWidth, metrics.measure) - TableLayoutCalculator.horizontalPadding)
     }
 
     private var totalWidth: CGFloat { widths.reduce(0, +) }
 
     var body: some View {
-        LazyVStack(spacing: 0) {
-            ForEach(Array((block.rows ?? []).enumerated()), id: \.offset) { _, row in
+        HStack(spacing: 0) {
+            tableBody
+                .frame(width: totalWidth, alignment: .leading)
+                .overlay {
+                    if !isBorderless {
+                        Rectangle().stroke(theme.border, lineWidth: 0.5)
+                    }
+                }
+                .clipShape(.rect(cornerRadius: 4))
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 10)
+        .padding(.bottom, 12)
+    }
+
+    private var tableBody: some View {
+        LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(Array((normalized.rows ?? []).enumerated()), id: \.offset) { _, row in
                 HStack(spacing: 0) {
                     ForEach(Array(row.cells.enumerated()), id: \.offset) { index, cell in
                         cellView(cell, at: index)
@@ -281,11 +356,6 @@ private struct TableBlockView: View {
                 .accessibilityLabel(rowLabel(row))
             }
         }
-        .overlay(Rectangle().stroke(theme.border, lineWidth: 0.5))
-        .clipShape(.rect(cornerRadius: 4))
-        .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.vertical, 10)
-        .padding(.bottom, 12)
     }
 
     /// 表格行的朗读文本：「物品名：火球术，环阶：三环」。
@@ -313,6 +383,10 @@ private struct TableBlockView: View {
     }
 
     private func cellBackground(_ cell: TableCell) -> Color {
+        // 优先用源页的 class 底色（属性表 c1–c4 的斑马纹），其次是内联 bgcolor
+        if let hex = ClassStyle.cellBackground(cell.cls) {
+            return background(from: hex)
+        }
         guard let hex = cell.bg else { return .clear }
         return background(from: hex)
     }
@@ -337,7 +411,7 @@ private struct TableBlockView: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 5)
         .frame(width: width(at: index, span: span), alignment: .topLeading)
-        .background(Color(hex: cell.bg ?? "") ?? .clear)
+        .background(cellBackground(cell))
         .overlay(Rectangle().stroke(theme.border, lineWidth: 0.5))
     }
 }

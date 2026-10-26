@@ -412,3 +412,62 @@ final class IntegrityTests: XCTestCase {
         // 打不开也算识别成功，无需断言
     }
 }
+
+final class TableNormalizeTests: XCTestCase {
+    private func table(_ rows: [[(String, Int)]]) throws -> Block {
+        let json = """
+            {"type":"table","rows":[
+            \(rows.map { row in
+                "{\"cells\":[" + row.map { cell in
+                    "{\"colspan\":\(cell.1),\"blocks\":[{\"type\":\"p\",\"runs\":[{\"t\":\"\(cell.0)\"}]}]}"
+                }.joined(separator: ",") + "]}"
+            }.joined(separator: ","))
+            ]}
+            """
+        return try JSONDecoder().decode(Block.self, from: Data(json.utf8))
+    }
+
+    /// 空列（占位 / 5px 间隔列）应当被去掉，span 相应收缩
+    func testDropsEmptyColumns() throws {
+        let block = try table([
+            [("AC 12", 1), ("先攻 +2", 1)],
+            [("HP 11", 2)],
+            [("速度 40", 2)],
+        ])
+        XCTAssertEqual(TableLayoutCalculator.columnCount(block), 2)
+    }
+
+    func testDropsSpacerColumn() throws {
+        let block = try table([
+            [("力量", 1), ("14", 1), ("", 1), ("敏捷", 1), ("15", 1)],
+            [("智力", 1), ("3", 1), ("", 1), ("感知", 1), ("12", 1)],
+        ])
+        let normalized = TableLayoutCalculator.normalize(block)
+        XCTAssertEqual(TableLayoutCalculator.columnCount(normalized), 4)
+        XCTAssertEqual(normalized.rows?.first?.cells.count, 4)
+    }
+
+    func testKeepsTableWithoutEmptyColumns() throws {
+        let block = try table([[("a", 1), ("b", 1)]])
+        let normalized = TableLayoutCalculator.normalize(block)
+        XCTAssertEqual(TableLayoutCalculator.columnCount(normalized), 2)
+    }
+}
+
+final class NormalizeRealPageTests: XCTestCase {
+    func testWolfStatBlock() async throws {
+        guard let path = ProcessInfo.processInfo.environment["CONTENT_DB"] else {
+            throw XCTSkip("未设置 CONTENT_DB")
+        }
+        let db = try ContentDatabase(url: URL(fileURLWithPath: path))
+        let page = try await db.page(path: "怪物图鉴2025/附录A/狼.htm")
+        let blocks = try XCTUnwrap(page).blocks
+        let div = try XCTUnwrap(blocks.first { $0.type == "div" })
+        for table in div.blocksOrEmpty where table.type == "table" {
+            let before = TableLayoutCalculator.columnCount(table)
+            let after = TableLayoutCalculator.columnCount(TableLayoutCalculator.normalize(table))
+            print("  表：\(before) 列 → \(after) 列")
+            XCTAssertLessThanOrEqual(after, before)
+        }
+    }
+}
