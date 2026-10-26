@@ -54,6 +54,12 @@ public struct TableRow: Decodable, Sendable, Hashable {
     public var bg: String?
 }
 
+/// 页面内联 `<style>` 解析出的标签级样式（见 Tools/content/inline_css.py）。
+public struct BlockStyle: Decodable, Sendable, Hashable {
+    public var c: String?
+    public var b: Int?
+}
+
 public struct Block: Decodable, Sendable, Hashable {
     public var type: String
     public var level: Int?
@@ -69,6 +75,7 @@ public struct Block: Decodable, Sendable, Hashable {
     public var anchors: [String]?
     public var al: String?
     public var ind: Double?
+    public var style: BlockStyle?
 
     public var runsOrEmpty: [Run] { runs ?? [] }
     public var blocksOrEmpty: [Block] { blocks ?? [] }

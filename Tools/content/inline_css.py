@@ -1,0 +1,59 @@
+"""解析页面内联 <style> 里的标签级规则。
+
+只做一件事：把 `h1 { color: #971869 }` 这类规则解析出来，
+供标题渲染覆盖全局默认色。不做选择器组合、不做盒模型。
+"""
+
+from __future__ import annotations
+
+import re
+
+HEADING_TAGS = ("h1", "h2", "h3", "h4", "h5", "h6")
+
+_STYLE_BLOCK = re.compile(r"<style[^>]*>(.*?)</style>", re.S | re.I)
+_COMMENT = re.compile(r"/\*.*?\*/", re.S)
+_RULE = re.compile(r"([^{}]+)\{([^}]*)\}")
+_COLOR = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+
+
+def _normalize_color(value: str) -> str | None:
+    value = value.strip().lower()
+    if _COLOR.match(value):
+        if len(value) == 4:  # #abc → #aabbcc
+            return "#" + "".join(ch * 2 for ch in value[1:])
+        return value
+    named = {
+        "black": "#000000", "white": "#ffffff", "red": "#ff0000", "green": "#008000",
+        "blue": "#0000ff", "purple": "#800080", "gray": "#808080", "grey": "#808080",
+        "maroon": "#800000", "navy": "#000080", "olive": "#808000", "teal": "#008080",
+    }
+    return named.get(value)
+
+
+def heading_styles(html_text: str) -> dict[int, dict]:
+    """返回 `{level: {"c": 颜色, "b": 1}}`，只保留内联样式里显式声明过的值。
+
+    只匹配形如 `h1 { ... }` 的简单选择器；`div.stat-block h5` 这类交给
+    App 侧的 ClassStyle 处理，避免两套规则打架。
+    """
+    found: dict[int, dict] = {}
+    for block in _STYLE_BLOCK.findall(html_text):
+        text = _COMMENT.sub("", block)
+        for selector, body in _RULE.findall(text):
+            names = [s.strip().lower() for s in selector.split(",")]
+            if len(names) != 1 or names[0] not in HEADING_TAGS:
+                continue
+            level = int(names[0][1])
+            for declaration in body.split(";"):
+                if ":" not in declaration:
+                    continue
+                prop, value = declaration.split(":", 1)
+                prop = prop.strip().lower()
+                value = value.strip()
+                if prop == "color":
+                    color = _normalize_color(value)
+                    if color:
+                        found.setdefault(level, {})["c"] = color
+                elif prop == "font-weight" and value.lower() in ("bold", "bolder", "700", "800", "900"):
+                    found.setdefault(level, {})["b"] = 1
+    return found

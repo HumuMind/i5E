@@ -22,6 +22,8 @@ from urllib.parse import unquote
 
 from lxml import html as LH
 
+from inline_css import heading_styles
+
 # 空白与不可见字符：比较文本时整体剔除，避免 <BR>、缩进、全角空格造成误报。
 # 行分隔符只由 <BR> 产生，用来区分"结构换行"与源码里的普通换行。
 SEP = "\u2028"
@@ -339,6 +341,8 @@ def _align_indent(el) -> dict:
 class Builder:
     def __init__(self, page_path: str = "") -> None:
         self.page_path = page_path
+        # 页面内联 <style> 里对标题的颜色/字重覆盖（见 inline_css.py）
+        self.heading_styles: dict[int, dict] = {}
         self._ids: list[str] = []
         self.tag_seen: Counter = Counter()
         self.tag_handled: Counter = Counter()
@@ -520,6 +524,9 @@ class Builder:
         if tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
             runs = self.inline(el)
             block = {"type": "h", "level": int(tag[1]), "runs": runs}
+            level_style = self.heading_styles.get(int(tag[1]))
+            if level_style:
+                block["style"] = level_style
             if el.get("id"):
                 block["id"] = el.get("id")
             block.update(_align_indent(el))
@@ -805,6 +812,7 @@ def parse_page(path: str, data: bytes) -> dict:
     if body is None:
         body = doc
     b = Builder(path)
+    b.heading_styles = heading_styles(text)
     blocks = b.blocks(body)
     src = b.source_text(body)
     links = [el.get("href") for el in body.iter("a") if el.get("href")]

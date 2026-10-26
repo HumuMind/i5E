@@ -64,6 +64,10 @@ struct BlockView: View {
     /// 上游 `style.css` 给标题规定的颜色。数据里只有内联色，
     /// 靠样式表来的这一层要在这里补上（见 0017 补记）。
     private var headingDefaultColor: Color? {
+        // 页面内联样式里对标题颜色的覆盖优先于全局规则
+        if let hex = block.style?.c, let rgb = RGB(hexOrRGB: hex) {
+            return theme.adjusted(rgb)
+        }
         // 数据块里的 h5/h6 在源页是暗红（stat-block.css），不按普通标题的规则
         if ClassStyle.isStatBlockHeading(ancestors: ancestors), (block.level ?? 0) >= 5 {
             return RGB(hexOrRGB: "#800000").map(theme.adjusted)
@@ -150,7 +154,7 @@ struct BlockView: View {
         return Text(
             AttributedText.make(
                 block.runsOrEmpty, size: metrics.bodySize * scale,
-                bold: weight == .bold, highlight: highlight,
+                bold: weight == .bold || block.style?.b == 1, highlight: highlight,
                 theme: theme, defaultColor: headingDefaultColor)
         )
         .lineSpacing(metrics.bodySize * scale * 0.4)
@@ -342,7 +346,30 @@ private struct TableBlockView: View {
 
     private var totalWidth: CGFloat { widths.reduce(0, +) }
 
+    /// 单行单列的表格在源页里是排版容器（`<TABLE><tr><td>…整页…</td></tr></TABLE>`），
+    /// 不是数据表：直接铺开内容，不画边框、不按列宽压缩。
+    private var isLayoutTable: Bool {
+        let rows = normalized.rows ?? []
+        return rows.count == 1 && (rows.first?.cells.count ?? 0) == 1
+    }
+
+    @ViewBuilder
     var body: some View {
+        if isLayoutTable, let cell = normalized.rows?.first?.cells.first {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(cell.blocks.enumerated()), id: \.offset) { _, inner in
+                    BlockView(
+                        block: inner, ancestors: ancestors, highlight: nil,
+                        availableWidth: availableWidth)
+                }
+            }
+            .padding(.vertical, 6)
+        } else {
+            tableChrome
+        }
+    }
+
+    private var tableChrome: some View {
         HStack(spacing: 0) {
             tableBody
                 .frame(width: totalWidth, alignment: .leading)
