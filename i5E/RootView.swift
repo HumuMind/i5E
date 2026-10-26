@@ -12,13 +12,8 @@ struct RootView: View {
     var body: some View {
         @Bindable var model = model
         ZStack(alignment: .top) {
-            NavigationStack(path: $model.routes) {
-                StartPlaceholder()
-                    .navigationDestination(for: AppModel.Route.self) { route in
-                        PageScreen(route: route)
-                    }
-            }
-            .hideNavigationChrome()
+            ReaderContent()
+                .hideNavigationChrome()
 
             if !model.showDrawer {
                 FloatingBar(
@@ -82,6 +77,34 @@ private struct HideNavigationChrome: ViewModifier {
 extension View {
     func hideNavigationChrome() -> some View {
         modifier(HideNavigationChrome())
+    }
+}
+
+/// 页面区域。
+///
+/// iOS 用 NavigationStack，为的是右滑返回的手势与系统返回按钮。
+/// macOS 不用：我们的路由是"替换 + 追加"混着来的，系统的"弹一层"语义对不上，
+/// 点它的返回按钮会落到一个不该出现的页面。Mac 上用自己的浮动返回按钮。
+private struct ReaderContent: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        #if os(macOS)
+            if let route = model.routes.last {
+                PageScreen(route: route)
+                    .id(route)
+            } else {
+                StartPlaceholder()
+            }
+        #else
+            @Bindable var model = model
+            NavigationStack(path: $model.routes) {
+                StartPlaceholder()
+                    .navigationDestination(for: AppModel.Route.self) { route in
+                        PageScreen(route: route)
+                    }
+            }
+        #endif
     }
 }
 
