@@ -63,6 +63,8 @@ final class AppModel {
     /// 阅读排版尺寸，随字号档位变化。
     private(set) var metrics: ReadingMetrics = .standard
     private(set) var pageCount = 0
+    /// 内容库的构建信息（上游版本），显示在设置页。
+    private(set) var contentBuild: ContentBuild?
     /// 页面路径 → 从顶层到该页的标题链，用于显示"章节路径"。
     private(set) var chapterPath: [String: [String]] = [:]
     private var searchTask: Task<Void, Never>?
@@ -94,6 +96,7 @@ final class AppModel {
             bookmarks = store.bookmarks()
             showDrawer = UserDefaults.standard.bool(forKey: "openDrawer")
             showSearch = UserDefaults.standard.bool(forKey: "openSearch")
+            showSettings = UserDefaults.standard.bool(forKey: "openSettings")
 
             // 调试与截图用：`-openPage <路径>` 直接打开某一页
             if let path = UserDefaults.standard.string(forKey: "openPage"), !path.isEmpty {
@@ -102,6 +105,11 @@ final class AppModel {
 
             if let size = store.loadFontSize() {
                 metrics = .forSize(size)
+            }
+            if let raw = try? await database.metaValue("build"),
+                let data = raw.data(using: .utf8)
+            {
+                contentBuild = try? JSONDecoder().decode(ContentBuild.self, from: data)
             }
             if let raw = try? await database.metaValue("pages"),
                 let data = raw.data(using: .utf8),
@@ -365,5 +373,21 @@ final class AppModel {
     func verifyContentDigest() async -> Bool {
         guard let db else { return false }
         return (try? await db.verifyTextDigest()) ?? false
+    }
+}
+
+/// `content.db` 里 `build` 字段的结构，只取展示需要的部分。
+struct ContentBuild: Decodable, Sendable {
+    struct Upstream: Decodable, Sendable {
+        var short: String
+        var date: String
+        var subject: String?
+    }
+
+    var upstream: Upstream
+
+    /// `2026-10-15`，从 ISO 时间戳里截日期。
+    var upstreamDate: String {
+        String(upstream.date.prefix(10))
     }
 }

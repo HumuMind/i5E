@@ -65,4 +65,5 @@
 | I29 | Mac 窗口 | [0036](decisions/0036-mac-window.md) · 已定（单窗口 + 快捷键） |
 | I30 | 分享复制 | [0037](decisions/0037-no-sharing.md) · 不做 |
 | I31 | 状态与搜索 | [0038](decisions/0038-state-and-search.md) · 已定（展开记忆 + 搜索面板） |
+| I32 | 内容版本 | [0039](decisions/0039-content-version.md) · 已定（设置页显示上游版本） |
 

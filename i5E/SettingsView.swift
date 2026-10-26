@@ -32,7 +32,14 @@ struct SettingsView: View {
 
                 Section("内容") {
                     LabeledContent("页面", value: "\(model.pageCount)")
-                    LabeledContent("版本", value: Self.appVersion)
+                    if let build = model.contentBuild {
+                        LabeledContent(
+                            "上游版本", value: "\(build.upstream.short) · \(build.upstreamDate)")
+                        if let subject = build.upstream.subject, !subject.isEmpty {
+                            LabeledContent("提交", value: subject)
+                        }
+                    }
+                    LabeledContent("应用版本", value: Self.appVersion)
                 }
 
                 Section("说明") {
