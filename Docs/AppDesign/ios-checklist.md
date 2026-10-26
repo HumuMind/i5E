@@ -108,7 +108,7 @@
 |---|---|---|---|
 | I36 ✅ | 上游同步 | 已定：[0043](../decisions/0043-upstream-sync.md) `Scripts/sync-upstream.sh` 一条命令 + 四项检查 | — |
 | I37 ✅ | issue 模板 | 已备好：[0044](../decisions/0044-issue-template.md) `.github/ISSUE_TEMPLATE/bug.yml`（仓库公开后生效） | — |
-| I38 | 崩溃与反馈收集 | 无网络前提下，能拿到什么、拿不到什么 | App Store 自带崩溃报告，但不含上下文 |
+| I38 ✅ | 崩溃与反馈 | 已定：[0045](../decisions/0045-crash-reporting.md) 不自建上报，靠版本信息 + 明确错误态补偿 | — |
 
 ## 建议顺序（第二批）
 
