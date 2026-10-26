@@ -449,12 +449,13 @@ private struct TableBlockView: View {
                 if isGroupRow(row) {
                     groupRow(row, layout: layout)
                 } else {
-                    HStack(spacing: 0) {
+                    // 顶部对齐：否则短单元格会被垂直居中，灰底看着高低不齐
+                    HStack(alignment: .top, spacing: 0) {
                         ForEach(Array(row.cells.enumerated()), id: \.offset) { index, cell in
                             cellView(cell, at: index, layout: layout)
                         }
                     }
-                    .frame(width: layout.totalWidth, alignment: .leading)
+                    .frame(width: layout.totalWidth, alignment: .topLeading)
                     .background(rowColor(row))
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(rowLabel(row, layout: layout))
