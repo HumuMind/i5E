@@ -358,7 +358,7 @@ private struct ListBlockView: View {
                             Text(
                                 AttributedText.make(
                                     item.runs, size: metrics.bodySize,
-                                    highlight: highlight)
+                                    highlight: highlight, theme: theme)
                             )
                             .lineSpacing(metrics.lineSpacing)
                         }
