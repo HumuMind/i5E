@@ -52,6 +52,14 @@ public struct TableCell: Decodable, Sendable, Hashable {
 
     /// 单元格纯文本，用于估宽。
     public var plainText: String { blocks.map(\.deepPlainText).joined() }
+
+    /// 单元格里是否有图片（排版表格里常见"文字 | 插图"两栏）。
+    public var hasImage: Bool {
+        blocks.contains { block in
+            block.runsOrEmpty.contains { $0.img != nil }
+                || block.blocksOrEmpty.contains { $0.runsOrEmpty.contains { $0.img != nil } }
+        }
+    }
 }
 
 public struct TableRow: Decodable, Sendable, Hashable {
@@ -86,6 +94,8 @@ public struct Block: Decodable, Sendable, Hashable {
     /// 表格显式宽度（源页 px）与百分比宽度
     public var w: Int?
     public var wp: Int?
+    /// 源页是否给这张表画了边框（没写 border 属性、页面 CSS 也没加时默认无边框）
+    public var bd: Int?
 
     public var runsOrEmpty: [Run] { runs ?? [] }
     public var blocksOrEmpty: [Block] { blocks ?? [] }

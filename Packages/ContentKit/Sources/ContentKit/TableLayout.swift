@@ -29,7 +29,9 @@ public enum TableLayoutCalculator {
             var column = 0
             for cell in row.cells {
                 let span = max(1, cell.colspan ?? 1)
-                let width = min(maxUnits, displayUnits(cell.plainText))
+                // 含图片的单元格没有文字，按普通空列算会把它压到最小宽度；
+                // 给它一个明显的宽度，图片才看得见。
+                let width = cell.hasImage ? 40.0 : min(maxUnits, displayUnits(cell.plainText))
                 let share = width / Double(span)
                 for offset in 0..<span where column + offset < count {
                     units[column + offset] = max(units[column + offset], share)
@@ -149,7 +151,8 @@ public enum TableLayoutCalculator {
     /// 单行渲染宽度。
     private static func lineWidth(_ text: String, fontSize: CGFloat) -> CGFloat {
         guard !text.isEmpty else { return 0 }
-        let font = CTFontCreateUIFontForLanguage(.system, fontSize, nil)
+        let font =
+            CTFontCreateUIFontForLanguage(.system, fontSize, nil)
             ?? CTFontCreateWithName("Helvetica" as CFString, fontSize, nil)
         let attributed = NSAttributedString(
             string: text, attributes: [kCTFontAttributeName as NSAttributedString.Key: font])

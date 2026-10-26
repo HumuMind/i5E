@@ -58,7 +58,11 @@ struct TableBlockView: View {
 
     /// 源页里 basic / center / part 这几类表格没有边框；数据块里的表格同样无边框
     private var isBorderless: Bool {
-        ClassStyle.isBorderlessTable(block.cls) || ancestors.contains("stat-block")
+        // 源页默认不画格子：只有写了 border 属性、页面 CSS 统一加边框、
+        // 或用了 basic/center/part 这类明确无边框的表格才有区别
+        if ClassStyle.isBorderlessTable(block.cls) { return true }
+        if ancestors.contains("stat-block") { return true }
+        return block.bd != 1
     }
 
     @ViewBuilder
@@ -193,16 +197,66 @@ struct TableBlockView: View {
         return widths[index..<upper].reduce(0, +)
     }
 
+    /// 单元格里的一个块。含图片时要单独渲染——`AttributedText` 只处理文字 run，
+    /// 图片（常见于"图文并排"的排版表格）会被丢掉。
+    @ViewBuilder
+    private func cellBlock(
+        _ inner: Block, cell: TableCell, layout: Layout, cellWidth: CGFloat
+    ) -> some View {
+        if inner.runsOrEmpty.contains(where: { $0.img != nil }) {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(Array(Self.pieces(inner.runsOrEmpty).enumerated()), id: \.offset) {
+                    _, piece in
+                    switch piece {
+                    case .text(let runs):
+                        Text(
+                            AttributedText.make(
+                                runs, size: layout.fontSize, bold: cell.header == true,
+                                theme: theme)
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    case .image(let run):
+                        ContentImageView(run: run, maxWidth: cellWidth)
+                    }
+                }
+            }
+        } else {
+            Text(
+                AttributedText.make(
+                    inner.runsOrEmpty, size: layout.fontSize, bold: cell.header == true,
+                    theme: theme)
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private enum Piece {
+        case text([Run])
+        case image(Run)
+    }
+
+    private static func pieces(_ runs: [Run]) -> [Piece] {
+        var result: [Piece] = []
+        var buffer: [Run] = []
+        for run in runs {
+            if run.img != nil {
+                if !buffer.isEmpty { result.append(.text(buffer)); buffer = [] }
+                result.append(.image(run))
+            } else {
+                buffer.append(run)
+            }
+        }
+        if !buffer.isEmpty { result.append(.text(buffer)) }
+        return result
+    }
+
     private func cellView(_ cell: TableCell, at index: Int, layout: Layout) -> some View {
         let span = max(1, cell.colspan ?? 1)
         return VStack(alignment: .leading, spacing: 3) {
             ForEach(Array(cell.blocks.enumerated()), id: \.offset) { _, inner in
-                Text(
-                    AttributedText.make(
-                        inner.runsOrEmpty, size: layout.fontSize, bold: cell.header == true,
-                        theme: theme)
-                )
-                .frame(maxWidth: .infinity, alignment: .leading)
+                cellBlock(
+                    inner, cell: cell, layout: layout,
+                    cellWidth: width(at: index, span: span, layout: layout))
             }
         }
         .padding(.horizontal, 6)

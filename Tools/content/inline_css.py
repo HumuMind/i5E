@@ -63,3 +63,16 @@ def heading_styles(html_text: str) -> dict[int, dict]:
                          if _normalize_color(token)), None)
                     found.setdefault(level, {})["bd"] = color or "1"
     return found
+
+
+def table_has_border(html_text: str) -> bool:
+    """页面 CSS 里是否给 table 统一加了边框。"""
+    for block in _STYLE_BLOCK.findall(html_text):
+        text = _COMMENT.sub("", block)
+        for selector, body in _RULE.findall(text):
+            names = [s.strip().lower() for s in selector.split(",")]
+            if "table" not in names:
+                continue
+            if "border" in body.lower() and "none" not in body.lower():
+                return True
+    return False

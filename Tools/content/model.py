@@ -22,7 +22,7 @@ from urllib.parse import unquote
 
 from lxml import html as LH
 
-from inline_css import heading_styles
+from inline_css import heading_styles, table_has_border
 
 # 空白与不可见字符：比较文本时整体剔除，避免 <BR>、缩进、全角空格造成误报。
 # 行分隔符只由 <BR> 产生，用来区分"结构换行"与源码里的普通换行。
@@ -70,6 +70,8 @@ class Builder:
         self.page_path = page_path
         # 页面内联 <style> 里对标题的颜色/字重覆盖（见 inline_css.py）
         self.heading_styles: dict[int, dict] = {}
+        # 页面 CSS 是否统一给 table 加了边框（没有的话表格默认无边框）
+        self.table_border = False
         self._ids: list[str] = []
         self.tag_seen: Counter = Counter()
         self.tag_handled: Counter = Counter()
@@ -418,6 +420,9 @@ class Builder:
             # 源页 caption 里常有换行，折叠成单空格，否则渲染时会被当硬换行
             caption = clean_text("".join(cap.itertext())).strip()
         tb = {"type": "table", "rows": rows, "caption": caption}
+        # 源页只有写了 border 属性（或页面 CSS 统一加边框）才画格子
+        if self.table_border or _has_border_attr(el):
+            tb["bd"] = 1
         if width_px:
             tb["w"] = width_px
         if width_pct:
@@ -428,6 +433,15 @@ class Builder:
 
 _WIDTH_PX = re.compile(r"WIDTH\s*:\s*(\d+)\s*(?:px)?", re.I)
 _WIDTH_PCT = re.compile(r"WIDTH\s*:\s*(\d+)\s*%", re.I)
+
+
+def _has_border_attr(el) -> bool:
+    """`border` 属性或内联 `border:` 声明。"""
+    value = (el.get("border") or "").strip()
+    if value.isdigit() and int(value) > 0:
+        return True
+    style = (el.get("style") or "").lower()
+    return "border" in style and "none" not in style
 
 
 def _table_width(el) -> tuple[int | None, int | None]:
@@ -569,6 +583,7 @@ def parse_page(path: str, data: bytes) -> dict:
         body = doc
     b = Builder(path)
     b.heading_styles = heading_styles(text)
+    b.table_border = table_has_border(text)
     blocks = b.blocks(body)
     src = b.source_text(body)
     links = [el.get("href") for el in body.iter("a") if el.get("href")]
