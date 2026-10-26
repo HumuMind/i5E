@@ -20,6 +20,16 @@ struct TableBlockView: View {
         var fontSize: CGFloat
     }
 
+    /// 整张表只有一个格子有内容（常见于"文字 + 插图"的排版表格）时，
+    /// 当作容器直接铺开，不按列宽压缩。
+    private var soleContentCell: TableCell? {
+        let cells = (block.rows ?? []).flatMap(\.cells)
+        let filled = cells.filter {
+            !$0.plainText.trimmingCharacters(in: .whitespaces).isEmpty || $0.hasImage
+        }
+        return filled.count == 1 ? filled[0] : nil
+    }
+
     private var layout: Layout {
         let normalized = TableLayoutCalculator.normalize(block)
         let count = TableLayoutCalculator.columnCount(normalized)
@@ -40,6 +50,14 @@ struct TableBlockView: View {
             if total > 0, abs(total - target) > 1 {
                 widths = widths.map { $0 * target / total }
             }
+        }
+        // 「文字 | 插图」两列排版表：图片列固定拿 45%，否则文字列会把宽度吃光
+        if widths.count == 2,
+            let imageColumn = normalized.rows?.first?.cells.firstIndex(where: \.hasImage)
+        {
+            let imageWidth = max(160, available * 0.45)
+            let rest = max(120, available - imageWidth)
+            widths = imageColumn == 0 ? [imageWidth, rest] : [rest, imageWidth]
         }
         return Layout(
             block: normalized, widths: widths, totalWidth: widths.reduce(0, +), fontSize: size)
@@ -69,7 +87,7 @@ struct TableBlockView: View {
     var body: some View {
         let layout = layout
         // 单行单列的表格在源页里是排版容器，不是数据表
-        if layout.block.rows?.count == 1, let cell = layout.block.rows?.first?.cells.first {
+        if let cell = soleContentCell {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(cell.blocks.enumerated()), id: \.offset) { _, inner in
                     BlockView(
@@ -203,7 +221,12 @@ struct TableBlockView: View {
     private func cellBlock(
         _ inner: Block, cell: TableCell, layout: Layout, cellWidth: CGFloat
     ) -> some View {
-        if inner.runsOrEmpty.contains(where: { $0.img != nil }) {
+        // 单元格里可能是整段嵌套结构（有的页把整个数据块放进一格），
+        // 这种情况必须交给 BlockView 递归渲染，不能只取 runs
+        if !inner.blocksOrEmpty.isEmpty {
+            BlockView(
+                block: inner, ancestors: ancestors, highlight: nil, availableWidth: cellWidth)
+        } else if inner.runsOrEmpty.contains(where: { $0.img != nil }) {
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(Array(Self.pieces(inner.runsOrEmpty).enumerated()), id: \.offset) {
                     _, piece in

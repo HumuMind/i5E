@@ -153,6 +153,14 @@ struct ReaderView: View {
                     onPositionChange?(offset)
                 }
             }
+            .task(id: "bottom-\(UserDefaults.standard.bool(forKey: "scrollBottom"))") {
+                // 调试：`-scrollBottom 1` 启动后滚到页尾，方便检查底部内容
+                guard UserDefaults.standard.bool(forKey: "scrollBottom"),
+                    !page.blocks.isEmpty
+                else { return }
+                try? await Task.sleep(for: .milliseconds(400))
+                proxy.scrollTo(page.blocks.count - 1, anchor: .bottom)
+            }
             .task(id: scrollTarget) {
                 guard let scrollTarget else { return }
                 // 等一帧，等布局出来再滚，否则 scrollTo 会落空
