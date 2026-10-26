@@ -12,6 +12,9 @@ struct i5EApp: App {
                 // 字号在这里下发一次；ReaderView / ReferenceView 只读不覆盖
                 .environment(\.readingMetrics, model.metrics)
                 .task { await model.start() }
+                #if os(macOS)
+                    .onAppear { Snapshot.captureIfRequested() }
+                #endif
         }
         .defaultSize(width: 1100, height: 800)
         .commands {

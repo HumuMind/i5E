@@ -31,7 +31,7 @@ struct TableBlockView: View {
             }
         let widths = TableLayoutCalculator.widths(
             normalized, fontSize: size,
-            available: min(availableWidth, metrics.measure)
+            available: min(availableWidth, metrics.measure(forAvailable: availableWidth))
                 - TableLayoutCalculator.horizontalPadding)
         return Layout(
             block: normalized, widths: widths, totalWidth: widths.reduce(0, +), fontSize: size)

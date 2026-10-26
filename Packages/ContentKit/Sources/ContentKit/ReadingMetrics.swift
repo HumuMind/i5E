@@ -8,6 +8,23 @@ public struct ReadingMetrics: Sendable, Equatable {
 
     public static let standard = ReadingMetrics(bodySize: 19, measure: 720)
 
+    /// 左右留白：按宽度的 8% 计算，最多 160pt。
+    ///
+    /// 用比例而不是固定值——固定 160pt 在 834pt 的 iPad 上会吃掉太多，
+    /// 版心只剩 514pt（每行 27 字）；按比例则 iPad 接近原来的 720，
+    /// Mac 宽窗口才明显变宽。
+    public static let sideMarginRatio: CGFloat = 0.08
+    public static let maxSideMargin: CGFloat = 160
+    /// 每行字数的上限。超过这个宽度眼睛回行容易错位，所以版心还要封顶。
+    public static let maxCharactersPerLine: CGFloat = 45
+
+    /// 按可用宽度算版心：左右按比例留白，宽度不超过 45 个字。
+    public func measure(forAvailable width: CGFloat) -> CGFloat {
+        let margin = min(Self.maxSideMargin, max(24, width * Self.sideMarginRatio))
+        let available = max(280, width - margin * 2)
+        return min(available, bodySize * Self.maxCharactersPerLine)
+    }
+
     public init(bodySize: CGFloat, measure: CGFloat) {
         self.bodySize = bodySize
         self.measure = measure

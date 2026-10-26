@@ -26,7 +26,10 @@ struct ReaderView: View {
     private var theme: ReadingTheme { .resolve(colorScheme) }
 
     /// 阅读区实际宽度，表格按它算列宽（窄屏时小于版心）。
-    @State private var contentWidth: CGFloat = ReadingMetrics.standard.measure
+    /// 滚动区域宽度（未被版心约束），版心由它推算。
+    @State private var viewportWidth: CGFloat = ReadingMetrics.standard.measure
+
+    private var measureWidth: CGFloat { metrics.measure(forAvailable: viewportWidth) }
     @State private var topBlock: Int?
     @State private var saveTask: Task<Void, Never>?
 
@@ -114,22 +117,17 @@ struct ReaderView: View {
                         case .single(let index):
                             BlockView(
                                 block: page.blocks[index], highlight: highlight,
-                                availableWidth: contentWidth
+                                availableWidth: measureWidth
                             )
                             .id(index)
                         case .floating(let index, let tail, let image):
                             floatingGroup(
-                                head: index, tail: tail, image: image, width: contentWidth)
+                                head: index, tail: tail, image: image, width: measureWidth)
                         }
                     }
                 }
                 .scrollTargetLayout()
-                .frame(maxWidth: metrics.measure, alignment: .leading)
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.size.width
-                } action: { width in
-                    contentWidth = width
-                }
+                .frame(maxWidth: measureWidth, alignment: .leading)
                 .padding(.horizontal, 24)
                 .padding(.top, 40 + topInset)
                 .padding(.bottom, 40)
@@ -138,6 +136,11 @@ struct ReaderView: View {
                 .accessibilityIdentifier("reader.content")
             }
             .background(theme.background)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.width
+            } action: { width in
+                viewportWidth = width
+            }
             .scrollPosition(id: $topBlock)
             .onChange(of: topBlock) { _, newValue in
                 guard let newValue else { return }
