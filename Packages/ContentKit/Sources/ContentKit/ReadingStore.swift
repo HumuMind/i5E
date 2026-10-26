@@ -40,6 +40,32 @@ public struct Bookmark: Codable, Sendable, Identifiable, Hashable {
     }
 }
 
+/// 最近看过的页面。
+public struct RecentPage: Codable, Sendable, Identifiable, Hashable {
+    public var id: String { path }
+    public var path: String
+    public var title: String
+    public var visited: Date
+
+    public init(path: String, title: String, visited: Date = .now) {
+        self.path = path
+        self.title = title
+        self.visited = visited
+    }
+}
+
+/// 阅读器里需要跨启动记住的杂项状态。
+public struct ReaderState: Codable, Sendable {
+    /// 目录里手动展开过的节点（用节点的路径标识）。
+    public var expandedNodes: Set<String> = []
+    /// 最近打开过的页面，最新在前。
+    public var recentPages: [RecentPage] = []
+    /// 搜索过的词，最新在前。
+    public var searchHistory: [String] = []
+
+    public init() {}
+}
+
 /// 存储接口。现在只有 UserDefaults 实现；换文件或 iCloud 时只换这里。
 public protocol ReadingStore: Sendable {
     func loadPosition() -> ReadingPosition?
@@ -50,6 +76,8 @@ public protocol ReadingStore: Sendable {
     func isBookmarked(path: String, offset: Int) -> Bool
     func loadFontSize() -> Double?
     func saveFontSize(_ size: Double)
+    func loadState() -> ReaderState
+    func saveState(_ state: ReaderState)
 }
 
 public final class UserDefaultsReadingStore: ReadingStore, @unchecked Sendable {
@@ -57,6 +85,7 @@ public final class UserDefaultsReadingStore: ReadingStore, @unchecked Sendable {
     private let positionKey = "reading.position"
     private let bookmarksKey = "reading.bookmarks"
     private let fontSizeKey = "reading.fontSize"
+    private let stateKey = "reading.state"
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
@@ -105,6 +134,18 @@ public final class UserDefaultsReadingStore: ReadingStore, @unchecked Sendable {
 
     public func saveFontSize(_ size: Double) {
         defaults.set(size, forKey: fontSizeKey)
+    }
+
+    public func loadState() -> ReaderState {
+        guard let data = defaults.data(forKey: stateKey),
+            let state = try? decoder.decode(ReaderState.self, from: data)
+        else { return ReaderState() }
+        return state
+    }
+
+    public func saveState(_ state: ReaderState) {
+        guard let data = try? encoder.encode(state) else { return }
+        defaults.set(data, forKey: stateKey)
     }
 
     private func persist(_ list: [Bookmark]) {

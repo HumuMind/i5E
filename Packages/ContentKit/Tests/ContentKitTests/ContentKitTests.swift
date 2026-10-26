@@ -358,3 +358,26 @@ final class MetricsTests: XCTestCase {
         XCTAssertEqual(store.loadFontSize(), 22)
     }
 }
+
+final class ReaderStateTests: XCTestCase {
+    private func store() -> UserDefaultsReadingStore {
+        UserDefaultsReadingStore(
+            defaults: UserDefaults(suiteName: "i5e.state.\(UUID().uuidString)")!)
+    }
+
+    func testStateRoundTrip() {
+        let s = store()
+        var state = s.loadState()
+        XCTAssertTrue(state.expandedNodes.isEmpty)
+
+        state.expandedNodes = ["a|b|2", "c|d|0"]
+        state.recentPages = [RecentPage(path: "x.htm", title: "某页")]
+        state.searchHistory = ["火球", "先攻"]
+        s.saveState(state)
+
+        let loaded = s.loadState()
+        XCTAssertEqual(loaded.expandedNodes, ["a|b|2", "c|d|0"])
+        XCTAssertEqual(loaded.recentPages.first?.path, "x.htm")
+        XCTAssertEqual(loaded.searchHistory, ["火球", "先攻"])
+    }
+}

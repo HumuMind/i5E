@@ -40,11 +40,20 @@ final class AppModel {
 
     /// 抽屉与设置由模型持有，菜单命令才能驱动它们。
     var showDrawer = false
+    var showSearch = false
     var showSettings = false
     /// 每次自增表示"请聚焦搜索框"。
     private(set) var searchFocusToken = 0
     /// 目录里所有可打开页面的顺序，用于上一页/下一页。
     private(set) var orderedPaths: [String] = []
+    /// 页面路径 → 它所在分支的节点标识（用于自动展开目录）。
+    private(set) var ancestorNodes: [String: [String]] = [:]
+
+    /// 跨启动保存的杂项状态：目录展开、最近查看、搜索历史。
+    private var state = ReaderState()
+    var expandedNodes: Set<String> { state.expandedNodes }
+    var recentPages: [RecentPage] { state.recentPages }
+    var searchHistory: [String] { state.searchHistory }
     var query: String = ""
     private(set) var isSearching = false
 
@@ -79,9 +88,12 @@ final class AppModel {
             let built = Self.buildChapterPaths(TOCSectionBuilder.build(from: tree.nodes))
             chapterPath = built.paths
             orderedPaths = built.order
+            ancestorNodes = built.ancestors
+            state = store.loadState()
 
             bookmarks = store.bookmarks()
             showDrawer = UserDefaults.standard.bool(forKey: "openDrawer")
+            showSearch = UserDefaults.standard.bool(forKey: "openSearch")
 
             // 调试与截图用：`-openPage <路径>` 直接打开某一页
             if let path = UserDefaults.standard.string(forKey: "openPage"), !path.isEmpty {
@@ -172,29 +184,81 @@ final class AppModel {
     /// 所以「旧版内容」会出现在链首——版本判定不需要另建映射表。
     private static func buildChapterPaths(
         _ sections: [TOCSection]
-    ) -> (paths: [String: [String]], order: [String]) {
+    ) -> (paths: [String: [String]], order: [String], ancestors: [String: [String]]) {
         var map: [String: [String]] = [:]
         var ordered: [String] = []
-        func walk(_ list: [TOCNode], trail: [String]) {
+        var ancestors: [String: [String]] = [:]
+        func walk(_ list: [TOCNode], trail: [String], chain: [String]) {
             for node in list {
                 let next = trail + [node.t]
+                let nextChain = chain + [node.id]
                 if let url = node.u {
                     let key = url.split(separator: "#").first.map(String.init) ?? url
                     map[key] = next
+                    ancestors[key] = nextChain
                     if !ordered.contains(key) { ordered.append(key) }
                 }
-                walk(node.c, trail: next)
+                walk(node.c, trail: next, chain: nextChain)
             }
         }
         for section in sections {
-            walk(section.nodes, trail: section.isPinned ? [] : [section.title])
+            walk(section.nodes, trail: section.isPinned ? [] : [section.title], chain: [])
         }
-        return (map, ordered)
+        return (map, ordered, ancestors)
     }
 
     func setCurrent(page: Page?, offset: Int) {
         currentPage = page
         currentOffset = offset
+        if let page { rememberVisit(page) }
+    }
+
+    /// 记一次访问；同一页重复打开只更新时间并提到最前。
+    private func rememberVisit(_ page: Page) {
+        state.recentPages.removeAll { $0.path == page.path }
+        state.recentPages.insert(
+            RecentPage(path: page.path, title: page.title.isEmpty ? page.path : page.title),
+            at: 0)
+        if state.recentPages.count > 30 { state.recentPages.removeLast(30) }
+        store.saveState(state)
+    }
+
+    func toggleExpansion(_ nodeID: String) {
+        if state.expandedNodes.contains(nodeID) {
+            state.expandedNodes.remove(nodeID)
+        } else {
+            state.expandedNodes.insert(nodeID)
+        }
+        store.saveState(state)
+    }
+
+    /// 目录某节点是否展开：手动展开过，或它在当前页面的分支上。
+    func isExpanded(_ nodeID: String) -> Bool {
+        if let current = routes.last?.path,
+            ancestorNodes[current]?.contains(nodeID) == true
+        {
+            return true
+        }
+        return state.expandedNodes.contains(nodeID)
+    }
+
+    func recordSearch(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2 else { return }
+        state.searchHistory.removeAll { $0 == trimmed }
+        state.searchHistory.insert(trimmed, at: 0)
+        if state.searchHistory.count > 20 { state.searchHistory.removeLast(20) }
+        store.saveState(state)
+    }
+
+    func clearSearchHistory() {
+        state.searchHistory = []
+        store.saveState(state)
+    }
+
+    func clearRecentPages() {
+        state.recentPages = []
+        store.saveState(state)
     }
 
     func setCurrentOffset(_ offset: Int) {
@@ -202,7 +266,8 @@ final class AppModel {
     }
 
     func focusSearch() {
-        showDrawer = true
+        showDrawer = false
+        showSearch = true
         searchFocusToken += 1
     }
 

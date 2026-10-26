@@ -89,12 +89,16 @@ import ContentKit
             let view = UITextView()
             view.isEditable = false
             view.isScrollEnabled = false
-            view.isSelectable = true
+            // 不选中：长按不再出现选择手柄。链接改由手势命中，见 Coordinator.handleTap
+            view.isSelectable = false
             view.backgroundColor = .clear
             view.textContainerInset = .zero
             view.textContainer.lineFragmentPadding = 0
             view.dataDetectorTypes = []
             view.delegate = context.coordinator
+            let tap = UITapGestureRecognizer(
+                target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
+            view.addGestureRecognizer(tap)
             view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
             return view
         }
@@ -128,6 +132,21 @@ import ContentKit
                 let handler = onOpenLink
                 MainActor.assumeIsolated { handler?(URL) }
                 return false
+            }
+
+            /// 正文不可选中，链接靠手势命中：先算点击处的字符，再看那里有没有 .link。
+            @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+                guard let textView = gesture.view as? UITextView else { return }
+                let point = gesture.location(in: textView)
+                let index = textView.layoutManager.characterIndex(
+                    for: point, in: textView.textContainer,
+                    fractionOfDistanceBetweenInsertionPoints: nil)
+                let storage = textView.textStorage
+                guard index < storage.length else { return }
+                guard let url = storage.attribute(.link, at: index, effectiveRange: nil) as? URL
+                else { return }
+                let handler = onOpenLink
+                MainActor.assumeIsolated { handler?(url) }
             }
         }
     }

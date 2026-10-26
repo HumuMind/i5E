@@ -44,6 +44,9 @@ struct RootView: View {
         .sheet(isPresented: $model.showSettings) {
             SettingsView()
         }
+        .sheet(isPresented: $model.showSearch) {
+            SearchPanel()
+        }
     }
 }
 
@@ -92,6 +95,9 @@ private struct FloatingBar: View {
             }
             button("list.bullet", label: "目录") {
                 showDrawer.toggle()
+            }
+            button("magnifyingglass", label: "搜索") {
+                model.focusSearch()
             }
             Spacer()
             if let page = model.currentPage {
@@ -143,7 +149,13 @@ private struct DrawerOverlay: View {
                     .onTapGesture { isPresented = false }
 
                 VStack(spacing: 0) {
-                    DrawerHeader()
+                    HStack {
+                        Text("5E 不全书").font(.headline).foregroundStyle(theme.text)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, 10)
                     Divider().overlay(theme.border)
                     DrawerContent()
                 }
@@ -153,56 +165,6 @@ private struct DrawerOverlay: View {
                 .background(theme.surface.ignoresSafeArea(edges: .vertical))
             }
         }
-    }
-}
-
-private struct DrawerHeader: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var query = ""
-    @FocusState private var searchFocused: Bool
-
-    private var theme: ReadingTheme { .resolve(colorScheme) }
-
-    var body: some View {
-        VStack(spacing: 10) {
-            HStack {
-                Text("5E 不全书").font(.headline).foregroundStyle(theme.text)
-                Spacer()
-            }
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass").foregroundStyle(theme.muted)
-                TextField("搜索正文", text: $query)
-                    .textFieldStyle(.plain)
-                    .focused($searchFocused)
-                    .accessibilityIdentifier("sidebar.search")
-                    #if os(iOS)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                    #endif
-                if !query.isEmpty {
-                    Button {
-                        query = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundStyle(theme.muted)
-                    }
-                    .buttonStyle(.plain)
-                }
-                if model.isSearching { ProgressView().controlSize(.small) }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(theme.background, in: .rect(cornerRadius: 8))
-            .onChange(of: query) { _, newValue in model.updateQuery(newValue) }
-            .onChange(of: model.searchFocusToken) { searchFocused = true }
-            .onAppear {
-                if model.searchFocusToken > 0 { searchFocused = true }
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 16)
-        .padding(.bottom, 10)
-        .background(theme.surface)
     }
 }
 
@@ -217,11 +179,7 @@ private struct DrawerContent: View {
             ContentUnavailableView(
                 "内容库打不开", systemImage: "exclamationmark.triangle", description: Text(message))
         case .ready:
-            if model.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                TOCTree(nodes: model.toc?.nodes ?? [])
-            } else {
-                SearchResultsView()
-            }
+            TOCTree(nodes: model.toc?.nodes ?? [])
         }
     }
 }
@@ -283,7 +241,12 @@ private struct NodeRows: View {
     @Environment(AppModel.self) private var model
     let node: TOCNode
     let depth: Int
-    @State private var expanded = false
+
+    private var expanded: Binding<Bool> {
+        Binding(
+            get: { model.isExpanded(node.id) },
+            set: { _ in model.toggleExpansion(node.id) })
+    }
 
     var body: some View {
         if node.c.isEmpty {
@@ -297,7 +260,7 @@ private struct NodeRows: View {
             .disabled(node.u == nil)
             .accessibilityIdentifier("toc.row.\(node.t)")
         } else {
-            DisclosureGroup(isExpanded: $expanded) {
+            DisclosureGroup(isExpanded: expanded) {
                 ForEach(node.c) { child in
                     NodeRows(node: child, depth: depth + 1)
                 }
@@ -369,6 +332,159 @@ struct SearchResultsView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("search.result.\(hit.id)")
+            }
+        }
+    }
+}
+
+// MARK: - 搜索面板（搜索 / 最近）
+
+struct SearchPanel: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var query = ""
+    @State private var tab: Tab = .search
+    @FocusState private var focused: Bool
+
+    private enum Tab: String, CaseIterable, Identifiable {
+        case search = "搜索"
+        case recent = "最近"
+        var id: String { rawValue }
+    }
+
+    private var theme: ReadingTheme { .resolve(colorScheme) }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                Picker("", selection: $tab) {
+                    ForEach(Tab.allCases) { item in
+                        Text(item.rawValue).tag(item)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+
+                switch tab {
+                case .search: searchTab
+                case .recent: recentTab
+                }
+            }
+            .navigationTitle("查找")
+            #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+        .frame(minWidth: 360, minHeight: 480)
+        .onAppear { focused = true }
+    }
+
+    private var searchTab: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").foregroundStyle(theme.muted)
+                TextField("搜索正文", text: $query)
+                    .textFieldStyle(.plain)
+                    .focused($focused)
+                    .accessibilityIdentifier("sidebar.search")
+                    #if os(iOS)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                    #endif
+                    .onSubmit { model.recordSearch(query) }
+                if !query.isEmpty {
+                    Button {
+                        query = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(theme.muted)
+                    }
+                    .buttonStyle(.plain)
+                }
+                if model.isSearching { ProgressView().controlSize(.small) }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(theme.background, in: .rect(cornerRadius: 8))
+            .padding(.horizontal, 16)
+            .onChange(of: query) { _, newValue in model.updateQuery(newValue) }
+            .onChange(of: model.searchFocusToken) { focused = true }
+
+            if query.isEmpty {
+                historyList
+            } else {
+                SearchResultsView()
+            }
+        }
+    }
+
+    private var historyList: some View {
+        List {
+            if !model.searchHistory.isEmpty {
+                Section("最近搜索") {
+                    ForEach(model.searchHistory, id: \.self) { term in
+                        Button {
+                            query = term
+                            model.updateQuery(term)
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .foregroundStyle(.secondary)
+                                Text(term)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .overlay {
+            if model.searchHistory.isEmpty {
+                ContentUnavailableView(
+                    "搜点什么", systemImage: "magnifyingglass",
+                    description: Text("输入书名、法术名或规则关键词"))
+            }
+        }
+    }
+
+    private var recentTab: some View {
+        List {
+            if model.recentPages.isEmpty {
+                ContentUnavailableView(
+                    "还没有阅读记录", systemImage: "clock",
+                    description: Text("打开过的页面会出现在这里"))
+            } else {
+                Section("最近查看") {
+                    ForEach(model.recentPages) { page in
+                        Button {
+                            model.show(AppModel.Route(path: page.path))
+                            dismiss()
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(page.title).lineLimit(1)
+                                Text(model.pathTitles(for: page.path).joined(separator: " › "))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .toolbar {
+            if !model.recentPages.isEmpty {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("清空") { model.clearRecentPages() }
+                }
             }
         }
     }
