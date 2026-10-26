@@ -22,7 +22,7 @@ struct BlockView: View {
             )
             .padding(.bottom, metrics.bodySize * 0.95)
         case "dd":
-            JustifiedText(
+            BodyText(
                 runs: block.runsOrEmpty, fontSize: metrics.bodySize,
                 highlight: highlight, theme: theme
             )
@@ -138,7 +138,7 @@ private struct ParagraphView: View {
             ForEach(Array(pieces.enumerated()), id: \.offset) { _, piece in
                 switch piece {
                 case .text(let runs):
-                    JustifiedText(
+                    BodyText(
                         runs: runs, fontSize: fontSize, highlight: highlight, theme: theme,
                         onOpenLink: { app.handleLink($0) })
                 case .image(let run):

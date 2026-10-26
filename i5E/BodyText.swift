@@ -4,12 +4,12 @@ import ContentKit
 #if canImport(UIKit)
     import UIKit
 
-    /// 两端对齐的段落。
+    /// 正文段落。
     ///
-    /// SwiftUI 的 `Text` 没有 text-align: justify，只能落到 UIKit 的
-    /// `NSParagraphStyle.alignment = .justified`。这是 0011 里定了的对齐方式的代价：
-    /// 每个正文段落走一层 `UIViewRepresentable`。
-    struct JustifiedText: View {
+    /// 用 UIKit 渲染而不是 SwiftUI 的 `Text`，是为了拿到行距与字体的精确控制。
+    /// 对齐方式为左对齐（0036）：中文与英文/数字混排时，两端对齐会把可拉伸的
+    /// 空格撑开，字距变得很难看。
+    struct BodyText: View {
         let runs: [Run]
         let fontSize: CGFloat
         var highlight: String?
@@ -17,7 +17,7 @@ import ContentKit
         var onOpenLink: (@MainActor (URL) -> Void)?
 
         var body: some View {
-            JustifiedLabel(
+            BodyLabel(
                 attributed: Self.attributed(
                     runs: runs, fontSize: fontSize, highlight: highlight, theme: theme),
                 onOpenLink: onOpenLink)
@@ -27,7 +27,7 @@ import ContentKit
             runs: [Run], fontSize: CGFloat, highlight: String? = nil, theme: ReadingTheme = .light
         ) -> NSAttributedString {
             let paragraph = NSMutableParagraphStyle()
-            paragraph.alignment = .justified
+            paragraph.alignment = .natural
             paragraph.lineSpacing = fontSize * (Reading.lineHeightMultiple - 1)
             // 中文行禁则：把不能出现在行首的标点挤回上一行
             paragraph.lineBreakStrategy = .pushOut
@@ -79,7 +79,7 @@ import ContentKit
 #if canImport(UIKit)
 
     /// 用 UITextView 而不是 UILabel：正文里的链接要能点。
-    private struct JustifiedLabel: UIViewRepresentable {
+    private struct BodyLabel: UIViewRepresentable {
         let attributed: NSAttributedString
         var onOpenLink: (@MainActor (URL) -> Void)?
 
@@ -134,7 +134,7 @@ import ContentKit
 #else
 
     /// macOS 上没有 UIKit；先用 SwiftUI 的 Text，两端对齐在 Mac 端待补（可用 NSTextView）。
-    struct JustifiedText: View {
+    struct BodyText: View {
         let runs: [Run]
         let fontSize: CGFloat
         var highlight: String?
