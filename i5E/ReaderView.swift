@@ -206,9 +206,16 @@ struct PageScreen: View {
             }
         }
         .task(id: route) { await load() }
+        .onChange(of: model.phase) { _, newValue in
+            if case .ready = newValue, page == nil {
+                Task { await load() }
+            }
+        }
     }
 
     private func load() async {
+        // 库还没打开时不要判定失败：等 phase 变成 ready 会自动重试
+        guard model.isReady else { return }
         failed = false
         let loaded = try? await Signpost.measure("loadPage") {
             try await model.page(path: route.path)

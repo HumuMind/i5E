@@ -339,6 +339,12 @@ final class AppModel {
         show(route)
     }
 
+    /// 内容库是否已就绪。页面加载要等它，否则会误判成"这一页打不开"。
+    var isReady: Bool {
+        if case .ready = phase { return true }
+        return false
+    }
+
     func page(path: String) async throws -> Page? {
         guard let db else { return nil }
         return try await db.page(path: path)
