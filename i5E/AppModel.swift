@@ -37,6 +37,14 @@ final class AppModel {
     /// 当前正在显示的页面与位置，供浮动按钮（书签）使用。
     private(set) var currentPage: Page?
     private(set) var currentOffset = 0
+
+    /// 抽屉与设置由模型持有，菜单命令才能驱动它们。
+    var showDrawer = false
+    var showSettings = false
+    /// 每次自增表示"请聚焦搜索框"。
+    private(set) var searchFocusToken = 0
+    /// 目录里所有可打开页面的顺序，用于上一页/下一页。
+    private(set) var orderedPaths: [String] = []
     var query: String = ""
     private(set) var isSearching = false
 
@@ -68,9 +76,12 @@ final class AppModel {
                 try await database.tableOfContents()
             }
             toc = tree
-            chapterPath = Self.buildChapterPaths(TOCSectionBuilder.build(from: tree.nodes))
+            let built = Self.buildChapterPaths(TOCSectionBuilder.build(from: tree.nodes))
+            chapterPath = built.paths
+            orderedPaths = built.order
 
             bookmarks = store.bookmarks()
+            showDrawer = UserDefaults.standard.bool(forKey: "openDrawer")
 
             // 调试与截图用：`-openPage <路径>` 直接打开某一页
             if let path = UserDefaults.standard.string(forKey: "openPage"), !path.isEmpty {
@@ -159,14 +170,18 @@ final class AppModel {
     ///
     /// 章节名来自 `TOCSectionBuilder` 的分组（分隔节点变成章节标题），
     /// 所以「旧版内容」会出现在链首——版本判定不需要另建映射表。
-    private static func buildChapterPaths(_ sections: [TOCSection]) -> [String: [String]] {
+    private static func buildChapterPaths(
+        _ sections: [TOCSection]
+    ) -> (paths: [String: [String]], order: [String]) {
         var map: [String: [String]] = [:]
+        var ordered: [String] = []
         func walk(_ list: [TOCNode], trail: [String]) {
             for node in list {
                 let next = trail + [node.t]
                 if let url = node.u {
                     let key = url.split(separator: "#").first.map(String.init) ?? url
                     map[key] = next
+                    if !ordered.contains(key) { ordered.append(key) }
                 }
                 walk(node.c, trail: next)
             }
@@ -174,7 +189,7 @@ final class AppModel {
         for section in sections {
             walk(section.nodes, trail: section.isPinned ? [] : [section.title])
         }
-        return map
+        return (map, ordered)
     }
 
     func setCurrent(page: Page?, offset: Int) {
@@ -184,6 +199,34 @@ final class AppModel {
 
     func setCurrentOffset(_ offset: Int) {
         currentOffset = offset
+    }
+
+    func focusSearch() {
+        showDrawer = true
+        searchFocusToken += 1
+    }
+
+    func goToAdjacentPage(_ delta: Int) {
+        guard !orderedPaths.isEmpty else { return }
+        let current = routes.last?.path
+        let index = current.flatMap { orderedPaths.firstIndex(of: $0) } ?? -1
+        let next = index < 0 ? 0 : index + delta
+        guard orderedPaths.indices.contains(next) else { return }
+        show(Route(path: orderedPaths[next]))
+    }
+
+    func stepFont(_ delta: Int) {
+        let steps = ReadingMetrics.Step.allCases
+        let current = steps.firstIndex { $0.rawValue == metrics.bodySize } ?? 1
+        let next = min(max(current + delta, 0), steps.count - 1)
+        setFontStep(steps[next])
+    }
+
+    func toggleBookmarkAtCurrent() {
+        guard let page = currentPage else { return }
+        toggleBookmark(
+            path: page.path, offset: currentOffset, title: page.title,
+            snippet: PageText.snippet(at: currentOffset, in: page.blocks))
     }
 
     func goBack() {

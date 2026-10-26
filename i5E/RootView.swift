@@ -8,8 +8,6 @@ import SwiftUI
 /// 左上角按钮开目录，右上角是书签与设置。
 struct RootView: View {
     @Environment(AppModel.self) private var model
-    @State private var showDrawer = UserDefaults.standard.bool(forKey: "openDrawer")
-    @State private var showSettings = false
 
     var body: some View {
         @Bindable var model = model
@@ -22,9 +20,9 @@ struct RootView: View {
             }
             .hideNavigationChrome()
 
-            if !showDrawer {
+            if !model.showDrawer {
                 FloatingBar(
-                    showDrawer: $showDrawer, showSettings: $showSettings,
+                    showDrawer: $model.showDrawer, showSettings: $model.showSettings,
                     canGoBack: model.routes.count > 1
                 )
                 .padding(.horizontal, 14)
@@ -33,13 +31,17 @@ struct RootView: View {
             }
         }
         .overlay(alignment: .leading) {
-            if showDrawer {
-                DrawerOverlay(isPresented: $showDrawer)
+            if model.showDrawer {
+                DrawerOverlay(isPresented: $model.showDrawer)
                     .transition(.move(edge: .leading).combined(with: .opacity))
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: showDrawer)
-        .sheet(isPresented: $showSettings) {
+        .animation(.easeInOut(duration: 0.2), value: model.showDrawer)
+        #if os(macOS)
+            // Esc 关抽屉（iOS 上没有这个命令）
+            .onExitCommand { model.showDrawer = false }
+        #endif
+        .sheet(isPresented: $model.showSettings) {
             SettingsView()
         }
     }
@@ -158,6 +160,7 @@ private struct DrawerHeader: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var colorScheme
     @State private var query = ""
+    @FocusState private var searchFocused: Bool
 
     private var theme: ReadingTheme { .resolve(colorScheme) }
 
@@ -171,6 +174,7 @@ private struct DrawerHeader: View {
                 Image(systemName: "magnifyingglass").foregroundStyle(theme.muted)
                 TextField("搜索正文", text: $query)
                     .textFieldStyle(.plain)
+                    .focused($searchFocused)
                     .accessibilityIdentifier("sidebar.search")
                     #if os(iOS)
                         .autocorrectionDisabled()
@@ -190,6 +194,10 @@ private struct DrawerHeader: View {
             .padding(.vertical, 7)
             .background(theme.background, in: .rect(cornerRadius: 8))
             .onChange(of: query) { _, newValue in model.updateQuery(newValue) }
+            .onChange(of: model.searchFocusToken) { searchFocused = true }
+            .onAppear {
+                if model.searchFocusToken > 0 { searchFocused = true }
+            }
         }
         .padding(.horizontal, 16)
         .padding(.top, 16)
