@@ -1,12 +1,27 @@
 import ContentKit
 import SwiftUI
 
-/// 全屏内容 + 浮动按钮 + 抽屉式目录。
+/// 阅读界面。
 ///
-/// 不再用 `NavigationSplitView`：三个平台共用同一套结构，
-/// 因此不需要按 size class 分叉（见 0035）。
-/// 左上角按钮开目录，右上角是书签与设置。
+/// iPhone 与 iPad：全屏内容 + 浮动按钮 + 抽屉式目录（见 0035）。
+/// Mac：窗口本身够宽，目录直接常驻左侧，既没有"目录"按钮也没有抽屉（见 0050）。
 struct RootView: View {
+    var body: some View {
+        Group {
+            #if os(macOS)
+                MacRoot()
+            #else
+                CompactRoot()
+            #endif
+        }
+        .modifier(Panels())
+    }
+}
+
+// MARK: - 两个平台的骨架
+
+/// iPhone 与 iPad：内容铺满，目录从左侧滑出。
+private struct CompactRoot: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
@@ -39,26 +54,68 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: model.showDrawer)
-        #if os(macOS)
-            // Esc 关抽屉（iOS 上没有这个命令）
-            .onExitCommand { model.showDrawer = false }
-        #endif
-        .overlay {
-            if model.showSearch {
-                OverlayPanel(title: "查找", isPresented: $model.showSearch) {
-                    SearchPanel()
-                }
-            }
-        }
-        .overlay {
-            if model.showSettings {
-                OverlayPanel(title: "设置", isPresented: $model.showSettings) {
-                    SettingsView()
-                }
-            }
-        }
     }
 }
+
+#if os(macOS)
+    /// Mac：左侧常驻目录，右侧阅读区。两者之间只隔一条细线，不分窗、不再折叠。
+    private struct MacRoot: View {
+        @Environment(AppModel.self) private var model
+        @Environment(\.colorScheme) private var colorScheme
+
+        private var theme: ReadingTheme { .resolve(colorScheme) }
+
+        var body: some View {
+            @Bindable var model = model
+            HStack(spacing: 0) {
+                SidebarColumn()
+                Rectangle()
+                    .fill(theme.border)
+                    .frame(width: 1)
+                ZStack(alignment: .top) {
+                    ReaderContent()
+                        .hideNavigationChrome()
+                    FloatingBar(
+                        showDrawer: $model.showDrawer, showSettings: $model.showSettings,
+                        canGoBack: model.routes.count > 1, showsTOCButton: false
+                    )
+                    .padding(.horizontal, 14)
+                    .padding(.top, 10)
+                }
+            }
+            // 再窄就压到版心了；宽度下限给目录留 300，正文留 420
+            .frame(minWidth: MacLayout.minWindowWidth, minHeight: 480)
+        }
+    }
+#endif
+
+// MARK: - 居中浮层
+
+/// 查找与设置：卡片式浮层，覆盖整个窗口。
+private struct Panels: ViewModifier {
+    @Environment(AppModel.self) private var model
+
+    func body(content: Content) -> some View {
+        @Bindable var model = model
+        content
+            .overlay {
+                if model.showSearch {
+                    OverlayPanel(title: "查找", isPresented: $model.showSearch) {
+                        SearchPanel()
+                    }
+                }
+            }
+            .overlay {
+                if model.showSettings {
+                    OverlayPanel(title: "设置", isPresented: $model.showSettings) {
+                        SettingsView()
+                    }
+                }
+            }
+    }
+}
+
+// MARK: - 页面区域
 
 /// 隐藏系统导航栏。
 ///
@@ -130,9 +187,16 @@ private struct ReaderContent: View {
 
 /// 还没选页面时的占位。
 private struct StartPlaceholder: View {
+    private var hint: String {
+        #if os(macOS)
+            "在左侧目录里选一页开始读"
+        #else
+            "左上角的按钮打开目录，也可以在里面搜索"
+        #endif
+    }
+
     var body: some View {
         ContentUnavailableView(
-            "选一页开始读", systemImage: "book",
-            description: Text("左上角的按钮打开目录，也可以在里面搜索"))
+            "选一页开始读", systemImage: "book", description: Text(hint))
     }
 }

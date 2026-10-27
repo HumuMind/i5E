@@ -76,4 +76,5 @@
 | I40 | 表格断行 | [0047](decisions/0047-table-min-width.md) · 已定（按实测词宽定下限） |
 | I41 | 内联 CSS | [0048](decisions/0048-inline-css.md) · 已定（解析标题颜色/字重） |
 | I42 | 图片与表格 | [0049](decisions/0049-images-and-tables.md) · 已定（图片尺寸/列宽放宽/分组行） |
+| I43 | Mac 目录 | [0050](decisions/0050-mac-sidebar.md) · 已定（常驻左列，无按钮无抽屉） |
 

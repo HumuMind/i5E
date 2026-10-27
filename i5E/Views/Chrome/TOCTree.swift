@@ -17,7 +17,7 @@ struct TOCTree: View {
                         Button {
                             model.show(
                                 AppModel.Route(path: bookmark.path, offset: bookmark.offset))
-                            model.showDrawer = false
+                            model.closeDrawer()
                         } label: {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(bookmark.title).lineLimit(1)
@@ -75,7 +75,7 @@ struct NodeRows: View {
             Button {
                 guard let path = node.u else { return }
                 model.show(AppModel.Route(path: path))
-                model.showDrawer = false
+                model.closeDrawer()
             } label: {
                 rowLabel(systemImage: "doc.text")
             }
@@ -91,7 +91,7 @@ struct NodeRows: View {
                 Button {
                     guard let path = node.u else { return }
                     model.show(AppModel.Route(path: path))
-                    model.showDrawer = false
+                    model.closeDrawer()
                 } label: {
                     rowLabel(systemImage: "book.closed")
                 }

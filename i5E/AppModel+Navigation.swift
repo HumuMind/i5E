@@ -58,9 +58,18 @@ extension AppModel {
     }
 
     func focusSearch() {
-        showDrawer = false
+        closeDrawer()
         showSearch = true
         searchFocusToken += 1
+    }
+
+    /// 收起目录抽屉。
+    ///
+    /// Mac 上目录常驻左侧，没有可收起的抽屉，这个动作要直接落空（见 0050）。
+    func closeDrawer() {
+        #if os(iOS)
+            showDrawer = false
+        #endif
     }
 
     func goToAdjacentPage(_ delta: Int) {

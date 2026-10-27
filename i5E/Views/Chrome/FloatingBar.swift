@@ -10,6 +10,8 @@ struct FloatingBar: View {
     @Binding var showDrawer: Bool
     @Binding var showSettings: Bool
     var canGoBack: Bool
+    /// Mac 上目录常驻左侧，没有抽屉，也就不需要"目录"按钮（见 0050）。
+    var showsTOCButton = true
 
     private var theme: ReadingTheme { .resolve(colorScheme) }
 
@@ -17,8 +19,10 @@ struct FloatingBar: View {
         HStack(alignment: .top, spacing: 8) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    button("list.bullet", label: "目录") {
-                        showDrawer.toggle()
+                    if showsTOCButton {
+                        button("list.bullet", label: "目录") {
+                            showDrawer.toggle()
+                        }
                     }
                     button("magnifyingglass", label: "搜索") {
                         model.focusSearch()
