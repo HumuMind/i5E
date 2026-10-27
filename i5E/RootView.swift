@@ -139,30 +139,24 @@ extension View {
 
 /// 页面区域。
 ///
-/// iOS 用 NavigationStack，为的是右滑返回的手势与系统返回按钮。
-/// macOS 不用：我们的路由是"替换 + 追加"混着来的，系统的"弹一层"语义对不上，
-/// 点它的返回按钮会落到一个不该出现的页面。Mac 上用自己的浮动返回按钮。
+/// 三端都不再用 `NavigationStack`：它的转场动画关不掉，而翻书要的是"咔"一下换页。
+/// 历史与滚动位置由 `AppModel.routes` / `routeOffsets` 自己管，返回按钮就是浮动条上那个。
+/// 代价是 iOS 上没有了系统右滑返回手势——用返回按钮代替（见 0018 补记）。
 private struct ReaderContent: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        #if os(macOS)
-            if let route = model.routes.last {
-                PageScreen(route: route)
-                    .id(route)
-            } else {
-                loadingOrPlaceholder
-            }
-        #else
-            @Bindable var model = model
-            NavigationStack(path: $model.routes) {
-                loadingOrPlaceholder
-                    .navigationDestination(for: AppModel.Route.self) { route in
-                        PageScreen(route: route)
-                    }
-            }
-        #endif
+        if let route = model.routes.last {
+            PageScreen(
+                route: route, resume: model.routeOffsets.last ?? 0,
+                initialPage: model.cachedPage(route.path)
+            )
+            // 每次前进/后退都换 id：整页重建，顺带按保存的位置重新落位
+            .id(model.navigationToken)
+        } else {
+            loadingOrPlaceholder
+        }
     }
 
     /// 启动阶段的根视图。

@@ -10,12 +10,27 @@ import Foundation
 extension AppModel {
 
     /// 打开一页。目录选页与链接跳转都追加到历史，返回按钮才有东西可回。
+    ///
+    /// 前进前先把当前页的滚动位置记进 `routeOffsets`，返回时才能回到原处。
     func show(_ route: Route) {
         if routes.last?.path == route.path, route.offset == nil, route.blockIndex == nil {
             return
         }
+        rememberOffset()
         routes.append(route)
-        if routes.count > 50 { routes.removeFirst(routes.count - 50) }
+        // 书签这类自带位置的入口要沿用它的偏移；普通链接从页首开始
+        routeOffsets.append(route.offset ?? 0)
+        if routes.count > 50 {
+            routes.removeFirst(routes.count - 50)
+            routeOffsets.removeFirst(routeOffsets.count - 50)
+        }
+        navigationToken += 1
+    }
+
+    /// 把当前页的滚动位置写回栈顶。
+    func rememberOffset() {
+        guard !routes.isEmpty, routeOffsets.count == routes.count else { return }
+        routeOffsets[routes.count - 1] = currentOffset
     }
 
     /// 页面所属的章节链，比如「玩家手册2024 › 第一章：进行游戏 › 玩家还是DM？」。
@@ -84,6 +99,8 @@ extension AppModel {
     func goBack() {
         guard routes.count > 1 else { return }
         routes.removeLast()
+        routeOffsets.removeLast()
+        navigationToken += 1
     }
 
     func push(_ route: Route) {
@@ -97,8 +114,26 @@ extension AppModel {
     }
 
     func page(path: String) async throws -> Page? {
+        if let cached = pageCache[path] { return cached }
         guard let db else { return nil }
-        return try await db.page(path: path)
+        let loaded = try await db.page(path: path)
+        if let loaded { rememberPage(loaded) }
+        return loaded
+    }
+
+    /// 已经读过的页（同步返回，供返回上一页时做首帧）。
+    func cachedPage(_ path: String) -> Page? {
+        pageCache[path]
+    }
+
+    func rememberPage(_ page: Page) {
+        if pageCache[page.path] == nil {
+            pageCacheOrder.append(page.path)
+            if pageCacheOrder.count > 30 {
+                pageCache.removeValue(forKey: pageCacheOrder.removeFirst())
+            }
+        }
+        pageCache[page.path] = page
     }
 
     /// 处理正文里的链接：外链出去，本页锚点原地滚，跨页压栈。

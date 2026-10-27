@@ -21,7 +21,6 @@ struct ReaderView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.readingMetrics) private var metrics
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var theme: ReadingTheme { .resolve(colorScheme) }
 
@@ -31,7 +30,21 @@ struct ReaderView: View {
 
     private var measureWidth: CGFloat { metrics.measure(forAvailable: viewportWidth) }
     @State private var topBlock: Int?
-    @State private var saveTask: Task<Void, Never>?
+    /// 定位完成前先不画正文：否则会先露一眼页首，再跳到目标位置
+    @State private var readyToShow: Bool
+
+    init(
+        page: Page, highlight: String? = nil, scrollTarget: Int? = nil,
+        topInset: CGFloat = 0, onPositionChange: ((Int) -> Void)? = nil
+    ) {
+        self.page = page
+        self.highlight = highlight
+        self.scrollTarget = scrollTarget
+        self.topInset = topInset
+        self.onPositionChange = onPositionChange
+        _topBlock = State(initialValue: scrollTarget)
+        _readyToShow = State(initialValue: scrollTarget == nil)
+    }
 
     /// 页面上的一行内容：单块，或"图文并排"组。
     ///
@@ -127,6 +140,7 @@ struct ReaderView: View {
                     }
                 }
                 .scrollTargetLayout()
+                .opacity(readyToShow ? 1 : 0)
                 .frame(maxWidth: measureWidth, alignment: .leading)
                 .padding(.horizontal, 24)
                 .padding(.top, 40 + topInset)
@@ -143,15 +157,11 @@ struct ReaderView: View {
             }
             .scrollPosition(id: $topBlock)
             .onChange(of: topBlock) { _, newValue in
-                guard let newValue else { return }
-                saveTask?.cancel()
-                saveTask = Task {
-                    try? await Task.sleep(for: .milliseconds(500))
-                    guard !Task.isCancelled,
-                        let offset = PageText.offset(ofBlock: newValue, in: page.blocks)
-                    else { return }
-                    onPositionChange?(offset)
-                }
+                // 立即回报：返回上一页时要用最新位置，不能等防抖
+                guard let newValue,
+                    let offset = PageText.offset(ofBlock: newValue, in: page.blocks)
+                else { return }
+                onPositionChange?(offset)
             }
             .task(id: "bottom-\(UserDefaults.standard.bool(forKey: "scrollBottom"))") {
                 // 调试：`-scrollBottom 1` 启动后滚到页尾，方便检查底部内容
@@ -162,12 +172,15 @@ struct ReaderView: View {
                 proxy.scrollTo(page.blocks.count - 1, anchor: .bottom)
             }
             .task(id: scrollTarget) {
-                guard let scrollTarget else { return }
-                // 等一帧，等布局出来再滚，否则 scrollTo 会落空
-                try? await Task.sleep(for: .milliseconds(60))
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
-                    proxy.scrollTo(scrollTarget, anchor: .top)
+                guard let scrollTarget else {
+                    readyToShow = true
+                    return
                 }
+                // 等一帧把布局算出来再滚，否则 scrollTo 会落空。
+                // 这期间正文是不可见的：先露页首再跳会看起来像卡了一下。
+                try? await Task.sleep(for: .milliseconds(50))
+                proxy.scrollTo(scrollTarget, anchor: .top)
+                readyToShow = true
             }
         }
         .environment(\.readingTheme, theme)
@@ -186,12 +199,15 @@ struct ReaderView: View {
 /// 按路由加载页面；锚点在这里解析成 block 序号。
 struct PageScreen: View {
     let route: AppModel.Route
+    /// 栈顶那一层上次读到哪（返回时用它复位，前进时为 0）
+    let resume: Int
 
     @Environment(AppModel.self) private var model
     @State private var page: Page?
     @State private var target: Int?
     @State private var currentOffset = 0
     @State private var failed = false
+    @State private var saveTask: Task<Void, Never>?
 
     var body: some View {
         Group {
@@ -208,9 +224,15 @@ struct PageScreen: View {
                     onPositionChange: { offset in
                         currentOffset = offset
                         model.setCurrentOffset(offset)
-                        model.recordPosition(
-                            path: page.path, offset: offset,
-                            snippet: PageText.snippet(at: offset, in: page.blocks))
+                        // 落盘防抖：滚动时别每一帧都写 UserDefaults
+                        saveTask?.cancel()
+                        saveTask = Task {
+                            try? await Task.sleep(for: .milliseconds(500))
+                            guard !Task.isCancelled else { return }
+                            model.recordPosition(
+                                path: page.path, offset: offset,
+                                snippet: PageText.snippet(at: offset, in: page.blocks))
+                        }
                     }
                 )
             } else {
@@ -225,32 +247,49 @@ struct PageScreen: View {
         }
     }
 
+    /// 有缓存页时，目标 block 在第一帧就算好：否则会先露一下页首再跳。
+    init(route: AppModel.Route, resume: Int = 0, initialPage: Page? = nil) {
+        self.route = route
+        self.resume = resume
+        _page = State(initialValue: initialPage)
+        _target = State(
+            initialValue: initialPage.flatMap {
+                Self.startBlock(route: route, resume: resume, page: $0)
+            })
+    }
+
+    /// 这一页该落到哪个 block：优先用"上次读到哪"，其次搜索命中/锚点。
+    static func startBlock(route: AppModel.Route, resume: Int, page: Page) -> Int? {
+        if resume > 0 {
+            return PageText.blockIndex(forOffset: resume, in: page.blocks) ?? 0
+        }
+        if let index = route.blockIndex { return index }
+        if let anchor = route.anchor { return page.blockIndex(forAnchor: anchor) }
+        return nil
+    }
+
     private func load() async {
         // 库还没打开时不要判定失败：等 phase 变成 ready 会自动重试
         guard model.isReady else { return }
         failed = false
-        let loaded = try? await Signpost.measure("loadPage") {
-            try await model.page(path: route.path)
+        let loaded: Page?
+        if let page, page.path == route.path {
+            loaded = page
+        } else {
+            loaded = try? await Signpost.measure("loadPage") {
+                try await model.page(path: route.path)
+            }
         }
         page = loaded
+        if let loaded { model.rememberPage(loaded) }
         guard let loaded else {
             failed = true
             model.setCurrent(page: nil, offset: 0)
             return
         }
-        if let offset = route.offset {
-            target = PageText.blockIndex(forOffset: offset, in: loaded.blocks) ?? 0
-            currentOffset = offset
-        } else if let index = route.blockIndex {
-            target = index
-            currentOffset = PageText.offset(ofBlock: index, in: loaded.blocks) ?? 0
-        } else if let anchor = route.anchor, let index = loaded.blockIndex(forAnchor: anchor) {
-            target = index
-            currentOffset = PageText.offset(ofBlock: index, in: loaded.blocks) ?? 0
-        } else {
-            target = nil
-            currentOffset = 0
-        }
+        let start = Self.startBlock(route: route, resume: resume, page: loaded)
+        target = start
+        currentOffset = start.flatMap { PageText.offset(ofBlock: $0, in: loaded.blocks) } ?? 0
         model.setCurrent(page: loaded, offset: currentOffset)
     }
 }

@@ -53,6 +53,9 @@ extension AppModel {
 
     func setCurrentOffset(_ offset: Int) {
         currentOffset = offset
+        if !routeOffsets.isEmpty {
+            routeOffsets[routeOffsets.count - 1] = offset
+        }
     }
 
     func setCurrent(page: Page?, offset: Int) {

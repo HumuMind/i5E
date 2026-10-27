@@ -24,6 +24,7 @@ final class AppModel {
         if let raw = UserDefaults.standard.string(forKey: "openPage"), !raw.isEmpty {
             routes = [Route(path: raw)]
         }
+        routeOffsets = routes.map { $0.offset ?? 0 }
     }
 
     enum Phase: Equatable {
@@ -46,6 +47,13 @@ final class AppModel {
 
     /// 详情列的导航栈。
     var routes: [Route] = []
+    /// 与 `routes` 一一对应：每页离开时的滚动位置（字符偏移），返回时用它复位。
+    var routeOffsets: [Int] = []
+    /// 每次前进/后退自增。页面视图以它为 id，导航时整体重建——没有转场动画。
+    var navigationToken = 0
+    /// 最近读过的页：返回时直接拿它做首帧，避免闪一下空白
+    var pageCache: [String: Page] = [:]
+    var pageCacheOrder: [String] = []
     /// 当前正在显示的页面与位置，供浮动按钮（书签）使用。
     var currentPage: Page?
     var currentOffset = 0
