@@ -77,5 +77,6 @@
 | I41 | 内联 CSS | [0048](decisions/0048-inline-css.md) · 已定（解析标题颜色/字重） |
 | I42 | 图片与表格 | [0049](decisions/0049-images-and-tables.md) · 已定（图片尺寸/列宽放宽/分组行） |
 | I43 | Mac 目录 | [0050](decisions/0050-mac-sidebar.md) · 已定（常驻左列，无按钮无抽屉） |
-| I44 | 自动链接 | [0051](decisions/0051-auto-mentions.md) · 已定（构建期补链接，轻下划线 + 开关） |
+| I44 | 自动链接 | [0051](decisions/0051-auto-mentions.md) · 已定（构建期补链接，四档详细程度） |
+| I45 | 窗口与尺寸 | [0052](decisions/0052-window-and-size.md) · 已定（单窗口；iPad 全屏） |
 

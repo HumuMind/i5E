@@ -11,7 +11,7 @@
 - 免费、无广告、无内购、无账号、无追踪
 - 内容只读，纠错走上游渠道
 - 不做角色卡、骰子、战斗工具
-- 内容全收（[0006](../decisions/0006-scope.md)），阅读层是 32 MB 单文件 SQLite（[0007](../decisions/0007-storage.md)）
+- 内容全收（[0006](../decisions/0006-scope.md)），阅读层是 40 MB 单文件 SQLite（[0007](../decisions/0007-storage.md)）
 
 ## 第一批：切第一刀之前必须定
 
@@ -39,7 +39,7 @@
 
 | # | 议题 | 要定什么 |
 |---|---|---|
-| I8 ✅ | 表格呈现 | 已定：[0015](../decisions/0015-table-layout.md) 列宽按内容、自然宽度、支持 colspan（rowspan 不做） |
+| I8 ✅ | 表格呈现 | 已定：[0015](../decisions/0015-table-layout.md) 列宽按内容、自然宽度；colspan 与 rowspan 都按表格网格落位 |
 | I9 ✅ | 图片 | 已定：[0016](../decisions/0016-images.md) 只处理包内真有的，缺图不渲染 |
 | I10 ✅ | 深色模式 | 已定：[0017](../decisions/0017-dark-mode.md) 跟随系统、阈值 4.5、移植上游对比度修复 |
 | I11 ✅ | 交叉引用 | 已定：[0018](../decisions/0018-cross-references.md) 构建期解析、点击压栈、锚点定位 |
@@ -109,6 +109,18 @@
 | I36 ✅ | 上游同步 | 已定：[0043](../decisions/0043-upstream-sync.md) `Scripts/sync-upstream.sh` 一条命令 + 四项检查 | — |
 | I37 ✅ | issue 模板 | 已备好：[0044](../decisions/0044-issue-template.md) `.github/ISSUE_TEMPLATE/bug.yml`（仓库公开后生效） | — |
 | I38 ✅ | 崩溃与反馈 | 已定：[0045](../decisions/0045-crash-reporting.md) 不自建上报，靠版本信息 + 明确错误态补偿 | — |
+
+### 渲染与体验（2026-10-26 起，已完成）
+
+| # | 议题 | 结论 | 为什么需要讨论 |
+|---|---|---|---|
+| I39 ✅ | class 样式 | 已定：[0046](../decisions/0046-class-styles.md) stat-block 系列 + 空列折叠 | 数据块占 896 页 |
+| I40 ✅ | 表格断行 | 已定：[0047](../decisions/0047-table-min-width.md) 按实测词宽定列宽下限 | `PHB24` 会被折成 `PHB2/4` |
+| I41 ✅ | 内联 CSS | 已定：[0048](../decisions/0048-inline-css.md) 解析标题颜色与字重 | 239 页靠内联样式表达层级 |
+| I42 ✅ | 图片与表格 | 已定：[0049](../decisions/0049-images-and-tables.md) 图片尺寸、列宽放宽、分组行 | 图文并排与斑马纹 |
+| I43 ✅ | Mac 目录 | 已定：[0050](../decisions/0050-mac-sidebar.md) 常驻左列，没有目录按钮与抽屉 | Mac 窗口够宽 |
+| I44 ✅ | 自动链接 | 已定：[0051](../decisions/0051-auto-mentions.md) 构建期补链接，四档详细程度 | 正文提及大多没有链接 |
+| I45 ✅ | 窗口与尺寸 | 已定：[0052](../decisions/0052-window-and-size.md) 单窗口；iPad 全屏、不做分屏 | 多窗口共享同一份状态 |
 
 ## 建议顺序（第二批）
 

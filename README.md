@@ -39,11 +39,11 @@ iPad 是主要阅读场景；iPhone 适合随手查阅；Mac 适合大屏对照�
 ## 开发
 
 ```bash
-python3 Tools/content/run.py build --pack   # 生成内容库（约 35 秒）
-./Scripts/stage-content.sh                  # 放进 App 资源目录（32 MB，不入库）
+python3 Tools/content/run.py build --pack   # 生成内容库（约 50 秒）
+./Scripts/stage-content.sh                  # 放进 App 资源目录（40 MB，不入库）
 
 ./Scripts/build.sh                          # 构建 App（iOS 模拟器）
-./Scripts/test.sh                           # 数据层测试（5 个，含跨语言正文哈希）
+./Scripts/test.sh                           # 数据层测试（49 个，含跨语言正文哈希）
 ./Scripts/lint.sh                           # swift-format + swiftlint
 ./Scripts/uitest.sh                         # UI 冒烟测试（macOS，约 35 秒）
 ```

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- 单窗口：iPad 上不再提供"新建窗口"。窗口之间共享同一个 AppModel，
+	     真开出第二个只会显示同一页、共用历史（见 0052）。 -->
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict/>
+	</dict>
+	<!-- 不做分屏/台前调度：阅读区宽度按设备宽度设计 -->
+	<key>UIRequiresFullScreen</key>
+	<true/>
+</dict>
+</plist>

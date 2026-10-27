@@ -28,10 +28,25 @@ extension AppModel {
         }
     }
 
+    /// 系统开了"减弱动态效果"就不做转场。
+    private var reduceMotion: Bool {
+        #if canImport(UIKit)
+            UIAccessibility.isReduceMotionEnabled
+        #elseif canImport(AppKit)
+            NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        #else
+            false
+        #endif
+    }
+
+    private var navigationAnimation: Animation? {
+        reduceMotion ? nil : .easeOut(duration: 0.22)
+    }
+
     /// 真正入栈。前进前先把当前页的滚动位置记进 `routeOffsets`，返回时才能回到原处。
     private func pushNow(_ route: Route) {
         rememberOffset()
-        withAnimation(.easeOut(duration: 0.22)) {
+        withAnimation(navigationAnimation) {
             navigationDirection = 1
             routes.append(route)
             // 书签这类自带位置的入口要沿用它的偏移；普通链接从页首开始
@@ -115,7 +130,7 @@ extension AppModel {
 
     func goBack() {
         guard routes.count > 1 else { return }
-        withAnimation(.easeOut(duration: 0.22)) {
+        withAnimation(navigationAnimation) {
             navigationDirection = -1
             routes.removeLast()
             routeOffsets.removeLast()

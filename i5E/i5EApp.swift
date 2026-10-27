@@ -6,6 +6,9 @@ struct i5EApp: App {
     @State private var model = AppModel()
 
     var body: some Scene {
+        // 单窗口：靠 Info.plist 的 UIApplicationSupportsMultipleScenes=false 关掉
+        // iPad 的"新建窗口"（见 0052）。窗口之间共享同一个 AppModel，
+        // 真开出第二个只会显示同一页、共用历史。
         WindowGroup {
             RootView()
                 .environment(model)
