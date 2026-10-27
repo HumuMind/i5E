@@ -45,3 +45,14 @@
 - 通过搜索或交叉引用跳转后，打开目录能直接看到自己所在的位置。
 - 搜索面板在 iPad 上是居中卡片，iPhone 上是 sheet；两者共用同一份实现。
 - 正文不可复制——这是 [0037](0037-no-sharing.md) 的延伸，保持一致。
+
+## 补记 · 2026-10-27：目录跟随当前页
+
+跳转、翻页、启动恢复位置之后，目录会滚到当前条目，而不是停在打开时的位置。
+实现在 `TOCTree`：每个节点挂 `.id(node.id)`，外层 `ScrollViewReader` 在
+`currentID`（`ancestorNodes[path].last`）变化时 `scrollTo(anchor: .center)`。
+
+- 祖先分支本来就由 `isExpanded` 自动展开，滚动只负责把它带到可见处；
+  等 90ms 再滚，让展开与布局各走完一帧。
+- iPad 抽屉与 Mac 常驻列共用同一个视图，两端行为一致；抽屉每次打开都会重新滚一次。
+- 开了 Reduce Motion 就不做滚动动画，直接落位。

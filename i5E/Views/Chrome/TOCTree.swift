@@ -5,54 +5,72 @@ import SwiftUI
 
 struct TOCTree: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let nodes: [TOCNode]
 
     private var sections: [TOCSection] { TOCSectionBuilder.build(from: nodes) }
 
+    /// 当前页在目录里对应的节点（最深的一层）。页不在目录里时为 nil。
+    private var currentID: String? {
+        guard let path = model.routes.last?.path else { return nil }
+        return model.ancestorNodes[path]?.last
+    }
+
     var body: some View {
-        List {
-            if !model.bookmarks.isEmpty {
-                Section("书签") {
-                    ForEach(model.bookmarks) { bookmark in
-                        Button {
-                            model.show(
-                                AppModel.Route(path: bookmark.path, offset: bookmark.offset))
-                            model.closeDrawer()
-                        } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(bookmark.title).lineLimit(1)
-                                Text(bookmark.snippet)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
+        ScrollViewReader { proxy in
+            List {
+                if !model.bookmarks.isEmpty {
+                    Section("书签") {
+                        ForEach(model.bookmarks) { bookmark in
+                            Button {
+                                model.show(
+                                    AppModel.Route(path: bookmark.path, offset: bookmark.offset))
+                                model.closeDrawer()
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(bookmark.title).lineLimit(1)
+                                    Text(bookmark.snippet)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .swipeActions {
+                                Button("删除", role: .destructive) {
+                                    model.removeBookmark(bookmark)
+                                }
                             }
                         }
-                        .buttonStyle(.plain)
-                        .swipeActions {
-                            Button("删除", role: .destructive) {
-                                model.removeBookmark(bookmark)
+                    }
+                }
+                ForEach(sections) { section in
+                    Section {
+                        ForEach(section.nodes) { node in
+                            NodeRows(node: node, depth: 0)
+                        }
+                    } header: {
+                        HStack(spacing: 6) {
+                            Text(section.title)
+                            if section.isPinned {
+                                Image(systemName: "pin").font(.caption2)
                             }
                         }
                     }
                 }
             }
-            ForEach(sections) { section in
-                Section {
-                    ForEach(section.nodes) { node in
-                        NodeRows(node: node, depth: 0)
-                    }
-                } header: {
-                    HStack(spacing: 6) {
-                        Text(section.title)
-                        if section.isPinned {
-                            Image(systemName: "pin").font(.caption2)
-                        }
-                    }
+            .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
+            // 跳转/翻页/启动恢复之后，把当前条目滚到可见处——否则目录还停在旧位置
+            .task(id: currentID) {
+                guard let currentID else { return }
+                // 祖先展开和行布局各要一帧；等两帧再滚，否则会滚到空处
+                try? await Task.sleep(for: .milliseconds(90))
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) {
+                    proxy.scrollTo(currentID, anchor: .center)
                 }
             }
         }
-        .listStyle(.sidebar)
-        .scrollContentBackground(.hidden)
     }
 }
 
@@ -81,6 +99,7 @@ struct NodeRows: View {
             }
             .buttonStyle(.plain)
             .disabled(node.u == nil)
+            .id(node.id)
             .accessibilityIdentifier("toc.row.\(node.t)")
         } else {
             DisclosureGroup(isExpanded: expanded) {
@@ -97,6 +116,7 @@ struct NodeRows: View {
                 }
                 .buttonStyle(.plain)
             }
+            .id(node.id)
         }
     }
 
