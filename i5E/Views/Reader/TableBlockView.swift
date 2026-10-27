@@ -131,6 +131,7 @@ struct TableBlockView: View {
         }
         .padding(.vertical, 10)
         .padding(.bottom, 12)
+        .frame(maxWidth: .infinity, alignment: block.al == "c" ? .center : .leading)
     }
 
     private func tableBody(_ layout: Layout) -> some View {
@@ -188,6 +189,22 @@ struct TableBlockView: View {
             return (name?.isEmpty == false ? name! + "：" : "") + text
         }
         .joined(separator: "，")
+    }
+
+    private func cellTextAlignment(_ cell: TableCell) -> TextAlignment {
+        switch cell.al {
+        case "c": .center
+        case "r": .trailing
+        default: .leading
+        }
+    }
+
+    private func cellFrameAlignment(_ cell: TableCell) -> Alignment {
+        switch cell.al {
+        case "c": .top
+        case "r": .topTrailing
+        default: .topLeading
+        }
     }
 
     private func rowColor(_ row: ContentKit.TableRow) -> Color {
@@ -282,9 +299,13 @@ struct TableBlockView: View {
                     cellWidth: width(at: index, span: span, layout: layout))
             }
         }
+        .multilineTextAlignment(cellTextAlignment(cell))
         .padding(.horizontal, 6)
         .padding(.vertical, 5)
-        .frame(width: width(at: index, span: span, layout: layout), alignment: .topLeading)
+        .frame(
+            width: width(at: index, span: span, layout: layout),
+            alignment: cellFrameAlignment(cell)
+        )
         // 撑满行高：源页的 td 背景是整格高度，矮的格子不撑开就会出现灰底高低不齐
         .frame(maxHeight: .infinity, alignment: .topLeading)
         .background(cellBackground(cell))

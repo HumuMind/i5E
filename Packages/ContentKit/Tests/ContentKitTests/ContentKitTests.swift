@@ -501,3 +501,21 @@ final class TableMinimumWidthTests: XCTestCase {
         XCTAssertLessThanOrEqual(minimums[0], 20, "中文可逐字断，下限很小")
     }
 }
+
+final class NestedAnchorTests: XCTestCase {
+    /// 锚点藏在表格单元格里时，也要能定位到它所属的顶层块
+    func testAnchorInsideTable() throws {
+        let json = """
+            [{"type":"h","level":2,"id":"Top","runs":[{"t":"标题"}]},
+             {"type":"table","rows":[{"cells":[
+                {"blocks":[{"type":"p","id":"InTable","runs":[{"t":"格子里"}]}]}
+             ]}]},
+             {"type":"p","runs":[{"t":"正文"}]}]
+            """
+        let blocks = try JSONDecoder().decode([Block].self, from: Data(json.utf8))
+        let page = Page(id: 1, path: "x", title: "", blocks: blocks)
+        XCTAssertEqual(page.blockIndex(forAnchor: "InTable"), 1)
+        XCTAssertEqual(page.blockIndex(forAnchor: "Top"), 0)
+        XCTAssertNil(page.blockIndex(forAnchor: "Nope"))
+    }
+}

@@ -408,6 +408,9 @@ class Builder:
                 ccls = _cls(td)
                 if ccls:
                     cell["cls"] = ccls
+                calign = _cell_align(td)
+                if calign:
+                    cell["al"] = calign
                 cells.append(cell)
             row = {"cells": cells}
             if row_bg:
@@ -427,12 +430,32 @@ class Builder:
             tb["w"] = width_px
         if width_pct:
             tb["wp"] = width_pct
+        talign = _table_align(el)
+        if talign:
+            tb["al"] = talign
         if _cls(el):
             tb["cls"] = _cls(el)
         return tb
 
 _WIDTH_PX = re.compile(r"WIDTH\s*:\s*(\d+)\s*(?:px)?", re.I)
 _WIDTH_PCT = re.compile(r"WIDTH\s*:\s*(\d+)\s*%", re.I)
+
+
+def _cell_align(el) -> str | None:
+    """单元格对齐：`align` 属性或内联 `text-align`。"""
+    value = (el.get("align") or "").strip().lower()
+    if not value:
+        m = re.search(r"text-align\s*:\s*(\w+)", el.get("style") or "", re.I)
+        value = m.group(1).lower() if m else ""
+    return {"center": "c", "right": "r", "justify": "j"}.get(value)
+
+
+def _table_align(el) -> str | None:
+    """整张表格的水平居中。"""
+    if (el.get("align") or "").strip().lower() == "center":
+        return "c"
+    style = (el.get("style") or "").lower()
+    return "c" if "auto" in style and "margin" in style else None
 
 
 def _has_border_attr(el) -> bool:

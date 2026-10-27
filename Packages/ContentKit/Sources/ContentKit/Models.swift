@@ -44,6 +44,8 @@ public struct ListItem: Decodable, Sendable, Hashable {
 
 public struct TableCell: Decodable, Sendable, Hashable {
     public var blocks: [Block]
+    /// 单元格对齐：c 居中 / r 右对齐 / j 两端
+    public var al: String?
     public var colspan: Int?
     public var rowspan: Int?
     public var header: Bool?
@@ -172,13 +174,30 @@ public struct SearchHit: Sendable, Identifiable, Hashable {
 }
 
 extension Page {
-    /// 找到锚点所在的顶层 block 序号。
+    /// 找到锚点所在的**顶层** block 序号。
+    ///
+    /// 锚点可能挂在表格单元格、列表项或容器里的块上（全库约 765 个），
+    /// 只扫顶层会漏掉它们，链接就落不到目标位置。这里递归找，
+    /// 但返回的是它所属的顶层块——滚动只能定位到顶层块。
     public func blockIndex(forAnchor anchor: String) -> Int? {
-        for (index, block) in blocks.enumerated() {
-            if block.id == anchor { return index }
-            if block.anchors?.contains(anchor) == true { return index }
+        for (index, block) in blocks.enumerated() where Self.contains(anchor: anchor, in: block) {
+            return index
         }
         return nil
+    }
+
+    private static func contains(anchor: String, in block: Block) -> Bool {
+        if block.id == anchor || block.anchors?.contains(anchor) == true { return true }
+        for child in block.blocksOrEmpty where contains(anchor: anchor, in: child) { return true }
+        for item in block.items ?? [] {
+            for child in item.blocks where contains(anchor: anchor, in: child) { return true }
+        }
+        for row in block.rows ?? [] {
+            for cell in row.cells {
+                for child in cell.blocks where contains(anchor: anchor, in: child) { return true }
+            }
+        }
+        return false
     }
 
     /// 从 `URL` 解析路径与锚点。
