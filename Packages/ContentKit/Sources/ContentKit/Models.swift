@@ -149,9 +149,16 @@ public struct Page: Sendable {
     public var path: String
     public var title: String
     public var blocks: [Block]
+    /// 是否引用了上游的 `style.css`。标题的默认颜色来自那份样式表，
+    /// 没引用它的页面（全库 4,244 页）标题在浏览器里是黑色。
+    public var usesStyleSheet: Bool
 
-    public init(id: Int64, path: String, title: String, blocks: [Block]) {
+    public init(
+        id: Int64, path: String, title: String, blocks: [Block],
+        usesStyleSheet: Bool = true
+    ) {
         self.id = id; self.path = path; self.title = title; self.blocks = blocks
+        self.usesStyleSheet = usesStyleSheet
     }
 }
 

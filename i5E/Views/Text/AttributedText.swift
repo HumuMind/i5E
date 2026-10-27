@@ -17,7 +17,13 @@ enum AttributedText {
             var intents: InlinePresentationIntent = []
             if bold || run.b == 1 { intents.insert(.stronglyEmphasized) }
             if run.i == 1 { intents.insert(.emphasized) }
-            var font = Font.system(size: size)
+            // 源页的行内字号（pt）。正文常见 10.5pt，按比例换算并限制在 0.75–2.2 倍，
+            // 免得个别极端值把版面撑破。
+            let runSize: CGFloat = {
+                guard let source = run.sz, source > 0 else { return size }
+                return size * min(max(source / 10.5, 0.75), 2.2)
+            }()
+            var font = Font.system(size: runSize)
             if bold || run.b == 1 { font = font.bold() }
             if run.i == 1 { font = font.italic() }
             let color: Color = resolvedColor(

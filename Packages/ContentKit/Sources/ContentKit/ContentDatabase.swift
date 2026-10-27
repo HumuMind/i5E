@@ -63,7 +63,7 @@ public final class ContentDatabase: Sendable {
         try await dbQueue.read { db in
             guard
                 let row = try Row.fetchOne(
-                    db, sql: "SELECT id, path, title, blocks FROM pages WHERE id = ?", arguments: [id])
+                    db, sql: "SELECT id, path, title, blocks, css FROM pages WHERE id = ?", arguments: [id])
             else { return nil }
             return try Self.makePage(row)
         }
@@ -73,7 +73,8 @@ public final class ContentDatabase: Sendable {
         try await dbQueue.read { db in
             guard
                 let row = try Row.fetchOne(
-                    db, sql: "SELECT id, path, title, blocks FROM pages WHERE path = ?", arguments: [path])
+                    db, sql: "SELECT id, path, title, blocks, css FROM pages WHERE path = ?",
+                    arguments: [path])
             else { return nil }
             return try Self.makePage(row)
         }
@@ -83,7 +84,12 @@ public final class ContentDatabase: Sendable {
         let blob: Data = row["blocks"]
         let json = try Zlib.inflate(blob)
         let blocks = try JSONDecoder().decode([Block].self, from: json)
-        return Page(id: row["id"], path: row["path"], title: row["title"] ?? "", blocks: blocks)
+        // 页面引用了上游 style.css 才有那套标题配色
+        let cssJSON: String = row["css"] ?? "[]"
+        let usesStyleSheet = cssJSON.contains("style.css")
+        return Page(
+            id: row["id"], path: row["path"], title: row["title"] ?? "", blocks: blocks,
+            usesStyleSheet: usesStyleSheet)
     }
 
     // MARK: - 搜索
@@ -113,7 +119,7 @@ public final class ContentDatabase: Sendable {
                 guard !seen.contains(pid) else { continue }
                 guard
                     let page = try Row.fetchOne(
-                        db, sql: "SELECT id, path, title, blocks FROM pages WHERE id = ?",
+                        db, sql: "SELECT id, path, title, blocks, css FROM pages WHERE id = ?",
                         arguments: [pid])
                 else { continue }
                 let blocks = try JSONDecoder().decode(
@@ -143,11 +149,14 @@ public final class ContentDatabase: Sendable {
                 guard !seen.contains(id) else { continue }
                 guard
                     let row = try Row.fetchOne(
-                        db, sql: "SELECT id, path, title, blocks FROM pages WHERE id = ?", arguments: [id])
+                        db, sql: "SELECT id, path, title, blocks, css FROM pages WHERE id = ?",
+                        arguments: [id])
                 else { continue }
 
                 let blob: Data = row["blocks"]
                 let blocks = try JSONDecoder().decode([Block].self, from: try Zlib.inflate(blob))
+                let cssJSON: String = row["css"] ?? "[]"
+                let usesStyleSheet = cssJSON.contains("style.css")
                 let text = PageText.of(blocks)
                 guard let range = text.range(of: needle, options: .caseInsensitive) else { continue }
 
@@ -192,6 +201,8 @@ public final class ContentDatabase: Sendable {
             while let row = try cursor.next() {
                 let blob: Data = row["blocks"]
                 let blocks = try JSONDecoder().decode([Block].self, from: try Zlib.inflate(blob))
+                let cssJSON: String = row["css"] ?? "[]"
+                let usesStyleSheet = cssJSON.contains("style.css")
                 hasher.update(data: Data(PageText.of(blocks).utf8))
                 hasher.update(data: Data("\n".utf8))
             }

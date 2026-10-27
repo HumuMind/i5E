@@ -12,6 +12,8 @@ struct BlockView: View {
     var availableWidth: CGFloat = ReadingMetrics.standard.measure
 
     @Environment(\.readingTheme) private var theme
+    /// 页面是否引用了上游 style.css；没有的话标题用正文色（浏览器默认黑）
+    @Environment(\.usesStyleSheet) private var usesStyleSheet
     @Environment(AppModel.self) private var app
 
     var body: some View {
@@ -79,7 +81,8 @@ struct BlockView: View {
         if ClassStyle.isStatBlockHeading(ancestors: ancestors), (block.level ?? 0) >= 5 {
             return RGB(hexOrRGB: "#800000").map { theme.adjusted($0) }
         }
-        guard let hex = SourceStyle.headingColorHex(level: block.level ?? 2),
+        guard usesStyleSheet,
+            let hex = SourceStyle.headingColorHex(level: block.level ?? 2),
             let rgb = RGB(hexOrRGB: hex)
         else { return nil }
         return theme.adjustedHeading(rgb)

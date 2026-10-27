@@ -178,7 +178,17 @@ import ContentKit
             Text(AttributedText.make(runs, size: fontSize, highlight: highlight, theme: theme))
                 .lineSpacing(Reading.lineSpacing)
                 .multilineTextAlignment(textAlignment)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: frameAlignment)
+        }
+
+        /// 短行在整行宽度里靠哪边放：只有 multilineTextAlignment 不够，
+        /// frame 的对齐也要跟着改，否则居中段落仍会贴在左边。
+        private var frameAlignment: Alignment {
+            switch alignment {
+            case .right: .trailing
+            case .center: .center
+            default: .leading
+            }
         }
 
         private var textAlignment: TextAlignment {

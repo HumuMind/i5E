@@ -64,7 +64,17 @@ private struct ReadingThemeKey: EnvironmentKey {
     static let defaultValue = ReadingTheme.light
 }
 
+private struct UsesStyleSheetKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
 extension EnvironmentValues {
+    /// 页面是否引用了上游 `style.css`（决定标题的默认颜色）。
+    var usesStyleSheet: Bool {
+        get { self[UsesStyleSheetKey.self] }
+        set { self[UsesStyleSheetKey.self] = newValue }
+    }
+
     var readingTheme: ReadingTheme {
         get { self[ReadingThemeKey.self] }
         set { self[ReadingThemeKey.self] = newValue }

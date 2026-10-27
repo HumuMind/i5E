@@ -171,6 +171,7 @@ struct ReaderView: View {
             }
         }
         .environment(\.readingTheme, theme)
+        .environment(\.usesStyleSheet, page.usesStyleSheet)
         .environment(
             \.openURL,
             OpenURLAction { url in
