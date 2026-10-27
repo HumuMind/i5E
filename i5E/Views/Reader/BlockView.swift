@@ -10,6 +10,8 @@ struct BlockView: View {
     var skipFloatedImage = false
     var highlight: String?
     var availableWidth: CGFloat = ReadingMetrics.standard.measure
+    /// 上层容器（如表格单元格）要求的对齐，块自己没有 `al` 时沿用它
+    var inheritedAlignment: String? = nil
 
     @Environment(\.readingTheme) private var theme
     /// 页面是否引用了上游 style.css；没有的话标题用正文色（浏览器默认黑）
@@ -26,7 +28,7 @@ struct BlockView: View {
             } else {
                 ParagraphView(
                     runs: block.runsOrEmpty, fontSize: metrics.bodySize,
-                    alignment: Self.textAlignment(block.al),
+                    alignment: Self.textAlignment(block.al ?? inheritedAlignment),
                     skipFloatedImage: skipFloatedImage,
                     highlight: highlight, availableWidth: availableWidth
                 )

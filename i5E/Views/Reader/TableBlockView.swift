@@ -261,8 +261,12 @@ struct TableBlockView: View {
         // 单元格里可能是整段嵌套结构（有的页把整个数据块放进一格），
         // 这种情况必须交给 BlockView 递归渲染，不能只取 runs
         if !inner.blocksOrEmpty.isEmpty {
+            // 单元格里的嵌套块也要跟随单元格对齐，否则同一格里
+            // 一段居中、一段贴左，看着像错位
             BlockView(
-                block: inner, ancestors: ancestors, highlight: nil, availableWidth: cellWidth)
+                block: inner, ancestors: ancestors, highlight: nil, availableWidth: cellWidth,
+                inheritedAlignment: cell.al ?? block.ta
+            )
         } else if inner.runsOrEmpty.contains(where: { $0.img != nil }) {
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(Array(Self.pieces(inner.runsOrEmpty).enumerated()), id: \.offset) {
