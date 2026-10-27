@@ -5,7 +5,7 @@ import Foundation
 /// 表格列宽计算。
 ///
 /// 规则来自 [0015](../../../../Docs/decisions/0015-table-layout.md)：
-/// 按内容估宽、自然宽度不铺满、低于下限就换行、不支持 rowspan。
+/// 按内容估宽、自然宽度不铺满、低于下限就换行；合并格按 `TableGrid` 落位。
 public enum TableLayoutCalculator {
 
     /// 单列内容宽度的上限（单位：半角字符宽）。超过就换行，不再撑宽。
@@ -16,27 +16,25 @@ public enum TableLayoutCalculator {
     public static let horizontalPadding: CGFloat = 12
 
     public static func columnCount(_ block: Block) -> Int {
-        (block.rows ?? []).map { $0.cells.reduce(0) { $0 + max(1, $1.colspan ?? 1) } }.max() ?? 0
+        TableGrid(block).columnCount
     }
 
     /// 每列需要多少个"半角字符宽"。
     public static func columnUnits(_ block: Block) -> [Double] {
-        let count = columnCount(block)
+        let grid = TableGrid(block)
+        let count = grid.columnCount
         guard count > 0 else { return [] }
         var units = Array(repeating: 0.0, count: count)
 
-        for row in block.rows ?? [] {
-            var column = 0
-            for cell in row.cells {
-                let span = max(1, cell.colspan ?? 1)
-                // 含图片的单元格没有文字，按普通空列算会把它压到最小宽度；
-                // 给它一个明显的宽度，图片才看得见。
-                let width = cell.hasImage ? 40.0 : min(maxUnits, displayUnits(cell.plainText))
-                let share = width / Double(span)
-                for offset in 0..<span where column + offset < count {
-                    units[column + offset] = max(units[column + offset], share)
-                }
-                column += span
+        for placement in grid.placements {
+            // 含图片的单元格没有文字，按普通空列算会把它压到最小宽度；
+            // 给它一个明显的宽度，图片才看得见。
+            let width =
+                placement.cell.hasImage
+                ? 40.0 : min(maxUnits, displayUnits(placement.cell.plainText))
+            let share = width / Double(placement.colspan)
+            for column in placement.column..<min(count, placement.column + placement.colspan) {
+                units[column] = max(units[column], share)
             }
         }
         return units.map { max(minUnits, $0) }
@@ -46,59 +44,36 @@ public enum TableLayoutCalculator {
     ///
     /// 源页里常见两种：`<td width=40%>` 占位导致的空列，以及属性表里
     /// `<td WIDTH=5px>` 这种纯间隔列。它们没有任何文字，却会被算进列宽，
-    /// 把真正的内容挤窄。这里把表格规范化：展开 colspan → 去掉空列 → 重新合并。
+    /// 把真正的内容挤窄。这里按网格判断：某列在**起点格**里都没有文字就丢掉，
+    /// 合并格（colspan / rowspan）的跨度按留下的列重算。
     public static func normalize(_ block: Block) -> Block {
         let rows = block.rows ?? []
         guard !rows.isEmpty else { return block }
 
-        // 1) 展开成网格
-        var grid: [[TableCell?]] = []
-        var width = 0
-        for row in rows {
-            var cells: [TableCell?] = []
-            for cell in row.cells {
-                let span = max(1, cell.colspan ?? 1)
-                cells.append(cell)
-                for _ in 1..<span { cells.append(nil) }
-            }
-            width = max(width, cells.count)
-            grid.append(cells)
-        }
+        let grid = TableGrid(block)
+        let width = grid.columnCount
+        guard width > 0 else { return block }
 
-        // 2) 哪些列有内容
         var keep = Array(repeating: false, count: width)
-        for cells in grid {
-            for (index, cell) in cells.enumerated() where index < width {
-                guard let cell, !cell.plainText.isEmpty else { continue }
-                keep[index] = true
+        for placement in grid.placements where !placement.cell.plainText.isEmpty {
+            for column in placement.column..<min(width, placement.column + placement.colspan) {
+                keep[column] = true
             }
         }
         guard keep.contains(false), keep.contains(true) else { return block }
 
-        // 3) 重新合并：相邻且属于同一个原始单元格的保留列并成一格
         var rebuilt: [TableRow] = []
-        for (rowIndex, cells) in grid.enumerated() {
-            var newCells: [TableCell] = []
-            var cursor = 0
-            while cursor < width {
-                guard cursor < cells.count, let origin = cells[cursor] else {
-                    cursor += 1
-                    continue
-                }
-                var span = 0
-                var probe = cursor
-                while probe < width, probe == cursor || cells[probe] == nil {
-                    if keep[probe] { span += 1 }
-                    probe += 1
-                }
-                if span > 0 {
-                    var cell = origin
-                    cell.colspan = span
-                    newCells.append(cell)
-                }
-                cursor = probe
+        for rowIndex in rows.indices {
+            var cells: [TableCell] = []
+            for placement in grid.rows[rowIndex] {
+                let span = (placement.column..<min(width, placement.column + placement.colspan))
+                    .reduce(0) { $0 + (keep[$1] ? 1 : 0) }
+                guard span > 0 else { continue }
+                var cell = placement.cell
+                cell.colspan = span
+                cells.append(cell)
             }
-            rebuilt.append(TableRow(cells: newCells, bg: rows[rowIndex].bg))
+            rebuilt.append(TableRow(cells: cells, bg: rows[rowIndex].bg))
         }
         var result = block
         result.rows = rebuilt
@@ -108,19 +83,14 @@ public enum TableLayoutCalculator {
     /// 每列**不设上限**的内容宽度（单位：半角字符宽）。
     /// 用于在表格还没占满可用宽度时，把多余空间分给需要换行的列。
     public static func contentUnits(_ block: Block) -> [Double] {
-        let count = columnCount(block)
+        let grid = TableGrid(block)
+        let count = grid.columnCount
         guard count > 0 else { return [] }
         var units = Array(repeating: 0.0, count: count)
-        for row in block.rows ?? [] {
-            var column = 0
-            for cell in row.cells {
-                let span = max(1, cell.colspan ?? 1)
-                let width = displayUnits(cell.plainText)
-                let share = width / Double(span)
-                for offset in 0..<span where column + offset < count {
-                    units[column + offset] = max(units[column + offset], share)
-                }
-                column += span
+        for placement in grid.placements {
+            let share = displayUnits(placement.cell.plainText) / Double(placement.colspan)
+            for column in placement.column..<min(count, placement.column + placement.colspan) {
+                units[column] = max(units[column], share)
             }
         }
         return units
@@ -131,19 +101,15 @@ public enum TableLayoutCalculator {
     /// 用估算值当上限会把 `伊米希Imix, 卡普斯Kossuth, 扎曼·鲁尔Zaaman Rul`
     /// 这类中英混排压窄——拉丁字母实际比"半个字宽"要宽。
     public static func measuredContentWidths(_ block: Block, fontSize: CGFloat) -> [CGFloat] {
-        let count = columnCount(block)
+        let grid = TableGrid(block)
+        let count = grid.columnCount
         guard count > 0 else { return [] }
         var widths = Array(repeating: CGFloat(0), count: count)
-        for row in (block.rows ?? []).prefix(60) {
-            var column = 0
-            for cell in row.cells {
-                let span = max(1, cell.colspan ?? 1)
-                if span == 1, column < count {
-                    let width = lineWidth(cell.plainText, fontSize: fontSize)
-                    widths[column] = max(widths[column], width)
-                }
-                column += span
-            }
+        // 只测前 60 行：长表（最大 970 行）全测会拖慢首屏
+        for placement in grid.placements where placement.row < 60 {
+            guard placement.colspan == 1, placement.column < count else { continue }
+            let width = lineWidth(placement.cell.plainText, fontSize: fontSize)
+            widths[placement.column] = max(widths[placement.column], width)
         }
         return widths.map { $0 + horizontalPadding }
     }
@@ -166,20 +132,15 @@ public enum TableLayoutCalculator {
     /// 用 CoreText 实测而不是按字符数估算——拉丁字母比"半个字宽"要宽，
     /// 估算会让 `PHB24` 被折成两行。
     public static func minimumWidths(_ block: Block, fontSize: CGFloat) -> [CGFloat] {
-        let count = columnCount(block)
+        let grid = TableGrid(block)
+        let count = grid.columnCount
         guard count > 0 else { return [] }
-        var minimum = Array(repeating: CGFloat(0), count: count)
 
-        for row in block.rows ?? [] {
-            var column = 0
-            for cell in row.cells {
-                let span = max(1, cell.colspan ?? 1)
-                if span == 1, column < count {
-                    let width = longestTokenWidth(cell.plainText, fontSize: fontSize)
-                    minimum[column] = max(minimum[column], width)
-                }
-                column += span
-            }
+        var minimum = Array(repeating: CGFloat(0), count: count)
+        for placement in grid.placements {
+            guard placement.colspan == 1, placement.column < count else { continue }
+            let width = longestTokenWidth(placement.cell.plainText, fontSize: fontSize)
+            minimum[placement.column] = max(minimum[placement.column], width)
         }
         return minimum.map { $0 + horizontalPadding }
     }

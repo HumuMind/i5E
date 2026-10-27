@@ -15,6 +15,8 @@ struct TableBlockView: View {
     /// CoreText 测量，一百多行的表格因此变成平方级，卡好几秒。
     private struct Layout {
         var block: Block
+        /// 合并格落位：colspan/rowspan 展开后每格从第几列开始
+        var grid: TableGrid
         var widths: [CGFloat]
         var totalWidth: CGFloat
         var fontSize: CGFloat
@@ -32,7 +34,8 @@ struct TableBlockView: View {
 
     private var layout: Layout {
         let normalized = TableLayoutCalculator.normalize(block)
-        let count = TableLayoutCalculator.columnCount(normalized)
+        let grid = TableGrid(normalized)
+        let count = grid.columnCount
         let size: CGFloat =
             switch count {
             case ...2: metrics.bodySize
@@ -60,7 +63,8 @@ struct TableBlockView: View {
             widths = imageColumn == 0 ? [imageWidth, rest] : [rest, imageWidth]
         }
         return Layout(
-            block: normalized, widths: widths, totalWidth: widths.reduce(0, +), fontSize: size)
+            block: normalized, grid: grid, widths: widths, totalWidth: widths.reduce(0, +),
+            fontSize: size)
     }
 
     /// 源页给表格写的宽度（px 或百分比），没有就返回 nil（按内容宽度）。
@@ -136,21 +140,33 @@ struct TableBlockView: View {
 
     private func tableBody(_ layout: Layout) -> some View {
         LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(Array((layout.block.rows ?? []).enumerated()), id: \.offset) { _, row in
+            ForEach(Array((layout.block.rows ?? []).enumerated()), id: \.offset) { index, row in
                 if isGroupRow(row) {
                     groupRow(row, layout: layout)
                 } else {
                     // 顶部对齐：否则短单元格会被垂直居中，灰底看着高低不齐
                     HStack(alignment: .top, spacing: 0) {
-                        ForEach(Array(row.cells.enumerated()), id: \.offset) { index, cell in
-                            cellView(cell, at: index, layout: layout)
+                        ForEach(
+                            Array(layout.grid.slots(in: index).enumerated()), id: \.offset
+                        ) { _, slot in
+                            switch slot {
+                            case .cell(let placement):
+                                cellView(
+                                    placement.cell, column: placement.column,
+                                    span: placement.colspan, layout: layout)
+                            case .hole(let column, let colspan):
+                                // 被上方 rowspan 盖住、或行尾缺列：留空但占住列宽，
+                                // 后面的格子才不会被顶到左边
+                                Color.clear.frame(
+                                    width: width(at: column, span: colspan, layout: layout))
+                            }
                         }
                     }
                     .frame(width: layout.totalWidth, alignment: .topLeading)
                     .background(rowColor(row))
                     .background(alternatingFill(row, layout: layout))
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(rowLabel(row, layout: layout))
+                    .accessibilityLabel(rowLabel(index, layout: layout))
                 }
             }
         }
@@ -179,17 +195,28 @@ struct TableBlockView: View {
     }
 
     /// 表格行的朗读文本：「物品名：火球术，环阶：三环」。
-    private func rowLabel(_ row: ContentKit.TableRow, layout: Layout) -> String {
-        row.cells.enumerated().compactMap { index, cell in
-            let text = cell.blocks.compactMap { $0.runsOrEmpty.compactMap(\.t).joined() }
+    private func rowLabel(_ rowIndex: Int, layout: Layout) -> String {
+        layout.grid.slots(in: rowIndex).compactMap { slot in
+            guard case .cell(let placement) = slot else { return nil }
+            let text = placement.cell.blocks
+                .compactMap { $0.runsOrEmpty.compactMap(\.t).joined() }
                 .joined().trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { return nil }
-            let header = layout.block.rows?.first?.cells
-            let name = (header.flatMap { index < $0.count ? $0[index] : nil })
-                .map { $0.blocks.compactMap { $0.runsOrEmpty.compactMap(\.t).joined() }.joined() }
+            let name = columnTitle(placement.column, layout: layout)
             return (name?.isEmpty == false ? name! + "：" : "") + text
         }
         .joined(separator: "，")
+    }
+
+    /// 某列的标题（取表头行里覆盖该列的那格）。
+    private func columnTitle(_ column: Int, layout: Layout) -> String? {
+        guard let header = layout.grid.rows.first else { return nil }
+        for placement in header
+        where column >= placement.column && column < placement.column + placement.colspan {
+            return placement.cell.blocks
+                .compactMap { $0.runsOrEmpty.compactMap(\.t).joined() }.joined()
+        }
+        return nil
     }
 
     private func alternatingFill(_ row: ContentKit.TableRow, layout: Layout) -> Color {
@@ -314,20 +341,20 @@ struct TableBlockView: View {
         return result
     }
 
-    private func cellView(_ cell: TableCell, at index: Int, layout: Layout) -> some View {
-        let span = max(1, cell.colspan ?? 1)
+    private func cellView(_ cell: TableCell, column: Int, span: Int, layout: Layout) -> some View {
+        let span = max(1, span)
         return VStack(alignment: .leading, spacing: 3) {
             ForEach(Array(cell.blocks.enumerated()), id: \.offset) { _, inner in
                 cellBlock(
                     inner, cell: cell, layout: layout,
-                    cellWidth: width(at: index, span: span, layout: layout))
+                    cellWidth: width(at: column, span: span, layout: layout))
             }
         }
         .multilineTextAlignment(cellTextAlignment(cell))
         .padding(.horizontal, 6)
         .padding(.vertical, 5)
         .frame(
-            width: width(at: index, span: span, layout: layout),
+            width: width(at: column, span: span, layout: layout),
             alignment: cellFrameAlignment(cell)
         )
         // 撑满行高：源页的 td 背景是整格高度，矮的格子不撑开就会出现灰底高低不齐

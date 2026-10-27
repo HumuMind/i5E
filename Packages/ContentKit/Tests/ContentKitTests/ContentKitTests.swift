@@ -413,6 +413,85 @@ final class IntegrityTests: XCTestCase {
     }
 }
 
+final class TableRowSpanTests: XCTestCase {
+    /// (文本, colspan, rowspan)
+    private func table(_ rows: [[(String, Int, Int)]]) throws -> Block {
+        let json = """
+            {"type":"table","rows":[
+            \(rows.map { row in
+                "{\"cells\":[" + row.map { cell in
+                    "{\"colspan\":\(cell.1),\"rowspan\":\(cell.2),\"blocks\":[{\"type\":\"p\",\"runs\":[{\"t\":\"\(cell.0)\"}]}]}"
+                }.joined(separator: ",") + "]}"
+            }.joined(separator: ","))
+            ]}
+            """
+        return try JSONDecoder().decode(Block.self, from: Data(json.utf8))
+    }
+
+    /// 职业法术表的两行表头：第二行要从第 6 列开始，而不是顶到第 1 列
+    func testSecondHeaderRowSkipsRowSpannedColumns() throws {
+        let block = try table([
+            [
+                ("等级", 1, 2), ("熟练加值", 1, 2), ("职业特性", 1, 2), ("戏法", 1, 2), ("准备法术", 1, 2),
+                ("——每环法术位——", 5, 1),
+            ],
+            [("一环", 1, 1), ("二环", 1, 1), ("三环", 1, 1), ("四环", 1, 1), ("五环", 1, 1)],
+            [
+                ("1", 1, 1), ("+2", 1, 1), ("施法", 1, 1), ("2", 1, 1), ("2", 1, 1), ("2", 1, 1),
+                ("—", 1, 1), ("—", 1, 1), ("—", 1, 1), ("—", 1, 1),
+            ],
+        ])
+        let grid = TableGrid(block)
+        XCTAssertEqual(grid.columnCount, 10)
+        XCTAssertEqual(grid.rows[1].first?.column, 5)
+        XCTAssertEqual(grid.rows[2].first?.column, 0)
+
+        let slots = grid.slots(in: 1)
+        guard case .hole(let column, let colspan) = slots.first else {
+            return XCTFail("第二行应当先是一个空洞")
+        }
+        XCTAssertEqual(column, 0)
+        XCTAssertEqual(colspan, 5)
+    }
+
+    /// 行内的 rowspan（阵营表的分组列）：后面的行要跳过第一列
+    func testBodyRowSpanKeepsColumns() throws {
+        let block = try table([
+            [("阵营", 1, 1), ("1d4", 1, 1), ("相关特征", 1, 1)],
+            [("混乱", 1, 4), ("1", 1, 1), ("自吹自擂", 1, 1)],
+            [("2", 1, 1), ("冲动", 1, 1)],
+            [("3", 1, 1), ("粗俗", 1, 1)],
+            [("4", 1, 1), ("多变", 1, 1)],
+        ])
+        let grid = TableGrid(block)
+        XCTAssertEqual(grid.columnCount, 3)
+        XCTAssertEqual(grid.rows[1].first?.column, 0)
+        XCTAssertEqual(grid.rows[2].first?.column, 1)
+        XCTAssertEqual(grid.rows[4].first?.column, 1)
+        if case .hole(let column, _) = grid.slots(in: 3).first {
+            XCTAssertEqual(column, 0)
+        } else {
+            XCTFail("被合并格覆盖的行应当留空洞")
+        }
+    }
+
+    /// 去空列之后，rowspan 表的列位仍然对得上
+    func testNormalizeKeepsRowSpanAlignment() throws {
+        let block = try table([
+            [("等级", 1, 2), ("", 1, 1), ("戏法", 1, 2), ("一环", 1, 1)],
+            [("", 1, 1), ("二环", 1, 1)],
+            [("1", 1, 1), ("", 1, 1), ("2", 1, 1), ("2", 1, 1)],
+        ])
+        let normalized = TableLayoutCalculator.normalize(block)
+        XCTAssertEqual(TableLayoutCalculator.columnCount(normalized), 3)
+        let grid = TableGrid(normalized)
+        XCTAssertEqual(grid.rows[0].first?.column, 0)
+        // 空列去掉后，戏法（rowspan 2）仍在第 2 列，一环/二环落到第 3 列
+        XCTAssertEqual(grid.rows[0].last?.column, 2)
+        XCTAssertEqual(grid.rows[1].first?.column, 2)
+    }
+}
+
 final class TableNormalizeTests: XCTestCase {
     private func table(_ rows: [[(String, Int)]]) throws -> Block {
         let json = """
