@@ -1,13 +1,27 @@
 import ContentKit
 import SwiftUI
 
+/// 自动链接的详细程度（见 0051）：0 关闭 / 1 精简 / 2 标准 / 3 详细。
+/// run 上的 `m` 是"它最早出现在哪一档"，`m <= 当前档位` 才渲染成链接。
+private struct MentionLevelKey: EnvironmentKey {
+    static let defaultValue = 2
+}
+
+extension EnvironmentValues {
+    var mentionLevel: Int {
+        get { self[MentionLevelKey.self] }
+        set { self[MentionLevelKey.self] = newValue }
+    }
+}
+
 enum AttributedText {
     /// 把 run 序列转成 AttributedString。保留颜色、粗斜体、下划线。
     /// 字号一律用传入值——源页的绝对字号（8–22pt）在阅读模式里不采用。
     static func make(
         _ runs: [Run], size: CGFloat, bold: Bool = false,
         highlight: String? = nil, theme: ReadingTheme = .light,
-        defaultColor: Color? = nil, largeText: Bool = false
+        defaultColor: Color? = nil, largeText: Bool = false,
+        mentionLevel: Int = 3
     ) -> AttributedString {
         var result = AttributedString()
         for run in runs {
@@ -34,10 +48,23 @@ enum AttributedText {
                 piece.font = font
                 piece.foregroundColor = color
                 if hit { piece.backgroundColor = Color.accentColor.opacity(0.22) }
-                if let href = run.href, let url = URL(string: href) { piece.link = url }
+                let mention = run.m.map { $0 <= mentionLevel } ?? false
+                if let href = run.href, let url = URL(string: href),
+                    !(run.m != nil && !mention)
+                {
+                    piece.link = url
+                }
                 if !intents.isEmpty { piece.inlinePresentationIntent = intents }
-                // 链接一律带下划线：源页靠它表达"可点"，我们的颜色本身不够醒目
-                if run.u == 1 || run.href != nil { piece.underlineStyle = .single }
+                // 链接一律带下划线：源页靠它表达"可点"，我们的颜色本身不够醒目。
+                // 自动链接（0051）只加一条淡下划线，文字保持正文色，压低噪音。
+                if run.u == 1 {
+                    piece.underlineStyle = .single
+                } else if mention {
+                    piece.underlineStyle = Text.LineStyle(
+                        pattern: .solid, color: theme.link.opacity(0.4))
+                } else if run.href != nil && run.m == nil {
+                    piece.underlineStyle = .single
+                }
                 // 上标/下标：字号缩到 72%，并相对基线升降
                 if run.sup == 1 || run.sub == 1 {
                     piece.font = Font.system(size: size * 0.72)
@@ -65,7 +92,7 @@ enum AttributedText {
             return fix(rgb)
         }
         // 普通链接没有语义标记，之前会落到正文色（看起来完全不像链接）
-        if run.href != nil { return theme.link }
+        if run.href != nil, run.m == nil { return theme.link }
         return defaultColor ?? theme.text
     }
 

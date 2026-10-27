@@ -147,6 +147,8 @@ class Builder:
                 resolved = resolve_link(self.page_path, el.get("href") or "")
                 if resolved:
                     nxt = {**ctx, "href": resolved}
+                    if el.get("data-mention"):
+                        nxt = {**nxt, "m": int(el.get("data-mention"))}
                 elif el.get("href"):
                     self.links_dropped += 1
             elif tag == "br":

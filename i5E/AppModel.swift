@@ -74,6 +74,8 @@ final class AppModel {
     var bookmarks: [Bookmark] = []
     /// 阅读排版尺寸，随字号档位变化。
     var metrics: ReadingMetrics = .standard
+    /// 正文里的自动链接详细程度：0 关闭 / 1 精简 / 2 标准 / 3 详细（见 0051）
+    var mentionLevel = 2
     private(set) var pageCount = 0
     /// 内容库的构建信息（上游版本），显示在设置页。
     private(set) var contentBuild: ContentBuild?
@@ -127,6 +129,9 @@ final class AppModel {
 
             if let size = store.loadFontSize() {
                 metrics = .forSize(size)
+            }
+            if let level = store.loadMentionLevel() {
+                mentionLevel = level
             }
             if let raw = try? await database.metaValue("build"),
                 let data = raw.data(using: .utf8)

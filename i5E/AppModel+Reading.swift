@@ -16,6 +16,12 @@ extension AppModel {
         store.saveFontSize(step.rawValue)
     }
 
+    /// 自动链接的详细程度（见 0051）。只影响渲染，不改内容。
+    func setMentionLevel(_ level: Int) {
+        mentionLevel = min(max(level, 0), 3)
+        store.saveMentionLevel(mentionLevel)
+    }
+
     func refreshBookmarks() {
         bookmarks = store.bookmarks()
     }

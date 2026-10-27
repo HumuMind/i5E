@@ -21,19 +21,21 @@ public struct Run: Decodable, Sendable, Hashable {
     public var w: Int?  // 图片宽度（源页 px）
     public var h: Int?  // 图片高度（源页 px）
     public var align: String?  // 图片浮动方向 left/right
+    /// 自动生成的链接（正文提到某个条目，构建期补的 href，见 0051）
+    public var m: Int?
 
     public init(
         t: String? = nil, img: String? = nil, alt: String? = nil,
         b: Int? = nil, i: Int? = nil, u: Int? = nil, s: Int? = nil,
         sup: Int? = nil, sub: Int? = nil, code: Int? = nil, href: String? = nil,
         c: String? = nil, sz: Double? = nil, fa: String? = nil,
-        w: Int? = nil, h: Int? = nil, align: String? = nil
+        w: Int? = nil, h: Int? = nil, align: String? = nil, m: Int? = nil
     ) {
         self.t = t; self.img = img; self.alt = alt
         self.b = b; self.i = i; self.u = u; self.s = s
         self.sup = sup; self.sub = sub; self.code = code; self.href = href
         self.c = c; self.sz = sz; self.fa = fa
-        self.w = w; self.h = h; self.align = align
+        self.w = w; self.h = h; self.align = align; self.m = m
     }
 }
 

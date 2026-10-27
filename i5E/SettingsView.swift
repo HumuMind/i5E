@@ -28,6 +28,30 @@ struct SettingsView: View {
                 Text("阅读字号")
             }
 
+            Section {
+                Picker(
+                    "自动链接",
+                    selection: Binding(
+                        get: { model.mentionLevel },
+                        set: { model.setMentionLevel($0) })
+                ) {
+                    Text("关闭").tag(0)
+                    Text("精简").tag(1)
+                    Text("标准").tag(2)
+                    Text("详细").tag(3)
+                }
+                .pickerStyle(.segmented)
+
+                Text(
+                    "正文里提到的条目会带一条淡下划线，点一下跳到它自己的页面。"
+                        + "越往下链接越多：精简只连较少见的专名，详细连「生命值」「伤害」这类通用词。"
+                )
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            } header: {
+                Text("跳转")
+            }
+
             Section("内容") {
                 LabeledContent("页面", value: "\(model.pageCount)")
                 if let build = model.contentBuild {

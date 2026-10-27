@@ -177,7 +177,7 @@ def c3(records) -> dict:
 
 BLOCK_TYPES = {"h", "p", "list", "table", "quote", "pre", "hr", "dt", "dd", "div"}
 RUN_KEYS = {"t", "img", "alt", "b", "i", "u", "s", "sup", "sub", "code", "href",
-            "c", "sz", "fa"}
+            "c", "sz", "fa", "m", "w", "h", "align"}
 
 
 def _schema(blocks) -> list[str]:

@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import check  # noqa: E402
 import toc as toc_mod  # noqa: E402
+import mentions  # noqa: E402
 import model  # noqa: E402
 import pack as pack_mod  # noqa: E402
 import preview  # noqa: E402
@@ -105,7 +106,8 @@ def features(rec) -> set[str]:
                     f.add("含下划线")
                 if r.get("sup"):
                     f.add("含上标")
-                if r.get("href"):
+                # 只看作者写的链接：自动链接（m）是派生的，不该改变样本挑选
+                if r.get("href") and not r.get("m"):
                     f.add("正文内链接")
     if c["imgs"]:
         f.add("含图")
@@ -220,6 +222,7 @@ def count_blocks(blocks) -> Counter:
 
 def build_report(records, results, spells, samples, elapsed, paths_total) -> str:
     c1, c2, c3, c4r, c5r, c6 = (results[k] for k in ("c1", "c2", "c3", "c4", "c5", "c6"))
+    mentions_stats = results.get("mentions") or {}
     c8r, pack = results.get("c8"), results.get("pack")
     c9r, info = results.get("c9"), results.get("info")
     c10r = results.get("c10")
@@ -245,6 +248,13 @@ def build_report(records, results, spells, samples, elapsed, paths_total) -> str
     L.append(f"| block JSON | {json_bytes / 1048576:.1f} MB |")
     L.append(f"| 编码 | {dict(enc)} |")
     L.append(f"| 来源 | {dict(fam)} |")
+    if mentions_stats:
+        L.append(
+            f"| 自动链接 | {mentions_stats.get('links', 0):,} 条 / "
+            f"{mentions_stats.get('pages', 0):,} 页"
+            f"（精简 {mentions_stats.get('tier1', 0):,} / "
+            f"标准 {mentions_stats.get('tier2', 0):,} / "
+            f"详细 {mentions_stats.get('tier3', 0):,}） |")
     L.append("")
 
     if info:
@@ -477,6 +487,18 @@ def main() -> int:
     elapsed_parse = time.time() - t0
     print(f"解析完成 {elapsed_parse:.1f}s", flush=True)
 
+    # 黄金样本按源页结构挑，要在自动链接之前定：拆 run 会让"字段标签"之类的
+    # 启发式漂移，样本清单就会无谓地变
+    samples = pick_samples(records, args.samples)
+
+    mention_stats = mentions.apply(records)
+    print(
+        f"自动链接 {mention_stats['links']} 条 / {mention_stats['pages']} 页"
+        f"（精简 {mention_stats.get('tier1', 0)} / 标准 {mention_stats.get('tier2', 0)}"
+        f" / 详细 {mention_stats.get('tier3', 0)}；歧义跳过 {mention_stats['ambiguous']}）",
+        flush=True,
+    )
+
     OUT.mkdir(exist_ok=True)
     with (OUT / "content.jsonl").open("w", encoding="utf-8") as fh:
         for r in records:
@@ -549,7 +571,6 @@ def main() -> int:
     spells = spell_stats(records)
     print(f"法术: {spells['total']} 条", flush=True)
 
-    samples = pick_samples(records, args.samples)
     by_path = {r["path"]: r for r in records}
     sample_recs = [by_path[s["path"]] for s in samples if s["path"] in by_path]
 
@@ -590,7 +611,7 @@ def main() -> int:
 
     report = build_report(records, {"c1": c1, "c2": c2, "c3": c3, "c4": c4r, "c5": c5r,
                                     "c6": c6, "c8": c8r, "c9": c9r, "c10": c10r,
-                                    "pack": pack, "info": info},
+                                    "pack": pack, "info": info, "mentions": mention_stats},
                           spells, samples, elapsed, len(paths))
     (OUT / "report.md").write_text(report, encoding="utf-8")
     (OUT / "samples.json").write_text(json.dumps(samples, ensure_ascii=False, indent=2), encoding="utf-8")

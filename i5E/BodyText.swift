@@ -18,17 +18,20 @@ import ContentKit
         var theme: ReadingTheme = .light
         var onOpenLink: (@MainActor (URL) -> Void)?
 
+        @Environment(\.mentionLevel) private var mentionLevel
+
         var body: some View {
             BodyLabel(
                 attributed: Self.attributed(
                     runs: runs, fontSize: fontSize, alignment: alignment,
-                    highlight: highlight, theme: theme),
+                    highlight: highlight, theme: theme, mentionLevel: mentionLevel),
                 onOpenLink: onOpenLink)
         }
 
         static func attributed(
             runs: [Run], fontSize: CGFloat, alignment: NSTextAlignment = .natural,
-            highlight: String? = nil, theme: ReadingTheme = .light
+            highlight: String? = nil, theme: ReadingTheme = .light,
+            mentionLevel: Int = 3
         ) -> NSAttributedString {
             let paragraph = NSMutableParagraphStyle()
             paragraph.alignment = alignment
@@ -44,7 +47,14 @@ import ContentKit
                     .paragraphStyle: paragraph,
                     .foregroundColor: color(for: run, theme: theme),
                 ]
-                if run.u == 1 || run.href != nil {
+                // 自动链接（0051）：正文色 + 淡下划线，不抢作者的链接
+                let mention = run.m.map { $0 <= mentionLevel } ?? false
+                if run.m != nil {
+                    if mention {
+                        attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
+                        attributes[.underlineColor] = UIColor(theme.link).withAlphaComponent(0.4)
+                    }
+                } else if run.u == 1 || run.href != nil {
                     attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
                 }
                 // 上标/下标：字号缩到 72%，并相对基线升降
@@ -59,7 +69,10 @@ import ContentKit
                     if hit {
                         pieceAttributes[.backgroundColor] = UIColor.tintColor.withAlphaComponent(0.22)
                     }
-                    if let href = run.href, let url = URL(string: href) {
+                    // 关掉自动链接后，这些 run 就当普通文字
+                    if let href = run.href, let url = URL(string: href),
+                        !(run.m != nil && !mention)
+                    {
                         pieceAttributes[.link] = url
                     }
                     result.append(NSAttributedString(string: segment, attributes: pieceAttributes))
@@ -107,6 +120,8 @@ import ContentKit
             view.textContainerInset = .zero
             view.textContainer.lineFragmentPadding = 0
             view.dataDetectorTypes = []
+            // 链接的颜色与下划线由富文本自己决定（自动链接是淡下划线，不是链接蓝）
+            view.linkTextAttributes = [:]
             view.delegate = context.coordinator
             let tap = UITapGestureRecognizer(
                 target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
@@ -174,11 +189,17 @@ import ContentKit
         var theme: ReadingTheme = .light
         var onOpenLink: (@MainActor (URL) -> Void)?
 
+        @Environment(\.mentionLevel) private var mentionLevel
+
         var body: some View {
-            Text(AttributedText.make(runs, size: fontSize, highlight: highlight, theme: theme))
-                .lineSpacing(Reading.lineSpacing)
-                .multilineTextAlignment(textAlignment)
-                .frame(maxWidth: .infinity, alignment: frameAlignment)
+            Text(
+                AttributedText.make(
+                    runs, size: fontSize, highlight: highlight, theme: theme,
+                    mentionLevel: mentionLevel)
+            )
+            .lineSpacing(Reading.lineSpacing)
+            .multilineTextAlignment(textAlignment)
+            .frame(maxWidth: .infinity, alignment: frameAlignment)
         }
 
         /// 短行在整行宽度里靠哪边放：只有 multilineTextAlignment 不够，

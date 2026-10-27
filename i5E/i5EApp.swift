@@ -11,6 +11,7 @@ struct i5EApp: App {
                 .environment(model)
                 // 字号在这里下发一次；ReaderView / ReferenceView 只读不覆盖
                 .environment(\.readingMetrics, model.metrics)
+                .environment(\.mentionLevel, model.mentionLevel)
                 .task { await model.start() }
                 #if os(macOS)
                     .onAppear { Snapshot.captureIfRequested() }

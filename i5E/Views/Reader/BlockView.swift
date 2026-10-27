@@ -14,6 +14,7 @@ struct BlockView: View {
     var inheritedAlignment: String? = nil
 
     @Environment(\.readingTheme) private var theme
+    @Environment(\.mentionLevel) private var mentionLevel
     /// 页面是否引用了上游 style.css；没有的话标题用正文色（浏览器默认黑）
     @Environment(\.usesStyleSheet) private var usesStyleSheet
     @Environment(AppModel.self) private var app
@@ -195,7 +196,8 @@ struct BlockView: View {
             AttributedText.make(
                 block.runsOrEmpty, size: metrics.bodySize * scale,
                 bold: weight == .bold || block.style?.b == 1, highlight: highlight,
-                theme: theme, defaultColor: headingDefaultColor, largeText: true)
+                theme: theme, defaultColor: headingDefaultColor, largeText: true,
+                mentionLevel: mentionLevel)
         )
         .lineSpacing(metrics.bodySize * scale * 0.4)
         .multilineTextAlignment(headingAlignment)
@@ -210,7 +212,8 @@ struct BlockView: View {
             AttributedText.make(
                 block.runsOrEmpty, size: metrics.bodySize * 1.15, bold: true,
                 highlight: highlight, theme: theme,
-                defaultColor: RGB(hexOrRGB: "#808080").map { theme.adjusted($0) })
+                defaultColor: RGB(hexOrRGB: "#808080").map { theme.adjusted($0) },
+                mentionLevel: mentionLevel)
         )
         .padding(.top, -2)
         .padding(.bottom, metrics.bodySize * 0.5)

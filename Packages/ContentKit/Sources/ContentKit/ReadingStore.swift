@@ -76,6 +76,10 @@ public protocol ReadingStore: Sendable {
     func isBookmarked(path: String, offset: Int) -> Bool
     func loadFontSize() -> Double?
     func saveFontSize(_ size: Double)
+    /// 自动链接的详细程度：0 关闭 / 1 精简 / 2 标准 / 3 详细（见 0051）。
+    /// 没设置过返回 nil，调用方用默认值。
+    func loadMentionLevel() -> Int?
+    func saveMentionLevel(_ level: Int)
     func loadState() -> ReaderState
     func saveState(_ state: ReaderState)
 }
@@ -85,6 +89,9 @@ public final class UserDefaultsReadingStore: ReadingStore, @unchecked Sendable {
     private let positionKey = "reading.position"
     private let bookmarksKey = "reading.bookmarks"
     private let fontSizeKey = "reading.fontSize"
+    private let mentionLevelKey = "reading.mentionLevel"
+    /// 旧版本只有开/关，读到时迁移一次
+    private let legacyAutoLinksKey = "reading.autoLinks"
     private let stateKey = "reading.state"
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
@@ -134,6 +141,20 @@ public final class UserDefaultsReadingStore: ReadingStore, @unchecked Sendable {
 
     public func saveFontSize(_ size: Double) {
         defaults.set(size, forKey: fontSizeKey)
+    }
+
+    public func loadMentionLevel() -> Int? {
+        if defaults.object(forKey: mentionLevelKey) != nil {
+            return min(max(defaults.integer(forKey: mentionLevelKey), 0), 3)
+        }
+        if defaults.object(forKey: legacyAutoLinksKey) != nil {
+            return defaults.bool(forKey: legacyAutoLinksKey) ? 2 : 0
+        }
+        return nil
+    }
+
+    public func saveMentionLevel(_ level: Int) {
+        defaults.set(min(max(level, 0), 3), forKey: mentionLevelKey)
     }
 
     public func loadState() -> ReaderState {

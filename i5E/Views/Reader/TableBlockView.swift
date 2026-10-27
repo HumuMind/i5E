@@ -8,6 +8,7 @@ struct TableBlockView: View {
     var availableWidth: CGFloat
 
     @Environment(\.readingTheme) private var theme
+    @Environment(\.mentionLevel) private var mentionLevel
 
     /// 一次算好的排版结果。
     ///
@@ -303,7 +304,7 @@ struct TableBlockView: View {
                         Text(
                             AttributedText.make(
                                 runs, size: layout.fontSize, bold: cell.header == true,
-                                theme: theme)
+                                theme: theme, mentionLevel: mentionLevel)
                         )
                         .frame(maxWidth: .infinity, alignment: .leading)
                     case .image(let run):
@@ -315,7 +316,7 @@ struct TableBlockView: View {
             Text(
                 AttributedText.make(
                     inner.runsOrEmpty, size: layout.fontSize, bold: cell.header == true,
-                    theme: theme)
+                    theme: theme, mentionLevel: mentionLevel)
             )
             .frame(maxWidth: .infinity, alignment: .leading)
         }

@@ -12,6 +12,7 @@ struct ListBlockView: View {
     var availableWidth: CGFloat = ReadingMetrics.standard.measure
 
     @Environment(\.readingTheme) private var theme
+    @Environment(\.mentionLevel) private var mentionLevel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -26,7 +27,7 @@ struct ListBlockView: View {
                             Text(
                                 AttributedText.make(
                                     item.runs, size: metrics.bodySize,
-                                    highlight: highlight, theme: theme)
+                                    highlight: highlight, theme: theme, mentionLevel: mentionLevel)
                             )
                             .lineSpacing(metrics.lineSpacing)
                         }

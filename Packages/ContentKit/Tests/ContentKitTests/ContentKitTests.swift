@@ -218,6 +218,27 @@ final class ReadingStoreTests: XCTestCase {
         XCTAssertEqual(loaded?.offset, 1234)
     }
 
+    /// 自动链接详细程度：没设置过是 nil（调用方用默认值），设置后能读回
+    func testMentionLevelRoundTrip() {
+        let s = store()
+        XCTAssertNil(s.loadMentionLevel())
+        s.saveMentionLevel(3)
+        XCTAssertEqual(s.loadMentionLevel(), 3)
+        s.saveMentionLevel(0)
+        XCTAssertEqual(s.loadMentionLevel(), 0)
+        // 越界值夹回 0…3
+        s.saveMentionLevel(9)
+        XCTAssertEqual(s.loadMentionLevel(), 3)
+    }
+
+    /// 旧版本只有开/关：关 = 0，开 = 标准（2）
+    func testMentionLevelMigratesLegacyFlag() {
+        let suite = UserDefaults(suiteName: "i5e.tests.\(UUID().uuidString)")!
+        suite.set(false, forKey: "reading.autoLinks")
+        let s = UserDefaultsReadingStore(defaults: suite)
+        XCTAssertEqual(s.loadMentionLevel(), 0)
+    }
+
     func testBookmarkAddRemoveAndNearDuplicate() {
         let s = store()
         s.add(Bookmark(path: "a.htm", offset: 100, title: "甲", snippet: "x"))
@@ -410,6 +431,24 @@ final class IntegrityTests: XCTestCase {
             XCTAssertNotNil(report, "截断的库应当被识别为损坏")
         }
         // 打不开也算识别成功，无需断言
+    }
+}
+
+final class MentionRunTests: XCTestCase {
+    /// 构建期写入的自动链接标记：`m: 1` + 一个普通 href（与 run.py 的 JSON 对齐）
+    func testDecodesMentionRun() throws {
+        let json = """
+            [{"type":"p","runs":[
+              {"t":"可以准备"},
+              {"t":"火球术","href":"玩家手册2024/法术详述/三环.htm#Fireball","m":1}
+            ]}]
+            """
+        let blocks = try JSONDecoder().decode([Block].self, from: Data(json.utf8))
+        let runs = blocks[0].runsOrEmpty
+        XCTAssertEqual(runs.count, 2)
+        XCTAssertNil(runs[0].m)
+        XCTAssertEqual(runs[1].m, 1)
+        XCTAssertEqual(runs[1].href, "玩家手册2024/法术详述/三环.htm#Fireball")
     }
 }
 

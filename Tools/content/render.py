@@ -56,7 +56,8 @@ def render_runs(runs: list[dict], defaults: dict | None = None, faithful: bool =
             if r.get(flag):
                 t = f"<{flag}>{t}</{flag}>"
         if r.get("href"):
-            t = f'<a href="{html.escape(r["href"])}">{t}</a>'
+            mark = f' data-mention="{r["m"]}"' if r.get("m") else ""
+            t = f'<a href="{html.escape(r["href"])}"{mark}>{t}</a>'
         out.append(t)
     return "".join(out)
 
