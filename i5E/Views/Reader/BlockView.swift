@@ -19,13 +19,17 @@ struct BlockView: View {
         case "h":
             heading
         case "p", "dt":
-            ParagraphView(
-                runs: block.runsOrEmpty, fontSize: metrics.bodySize,
-                alignment: Self.textAlignment(block.al),
-                skipFloatedImage: skipFloatedImage,
-                highlight: highlight, availableWidth: availableWidth
-            )
-            .padding(.bottom, metrics.bodySize * 0.95)
+            if block.cls?.contains("sum") == true {
+                subtitle
+            } else {
+                ParagraphView(
+                    runs: block.runsOrEmpty, fontSize: metrics.bodySize,
+                    alignment: Self.textAlignment(block.al),
+                    skipFloatedImage: skipFloatedImage,
+                    highlight: highlight, availableWidth: availableWidth
+                )
+                .padding(.bottom, metrics.bodySize * 0.95)
+            }
         case "dd":
             BodyText(
                 runs: block.runsOrEmpty, fontSize: metrics.bodySize,
@@ -193,6 +197,18 @@ struct BlockView: View {
         .padding(.top, level <= 2 ? 26 : 18)
         .padding(.bottom, 10)
         .frame(maxWidth: .infinity, alignment: headingFrameAlignment)
+    }
+
+    /// 标题下的摘要行（`P.sum`）：源页是灰色、加粗、115%。
+    private var subtitle: some View {
+        Text(
+            AttributedText.make(
+                block.runsOrEmpty, size: metrics.bodySize * 1.15, bold: true,
+                highlight: highlight, theme: theme,
+                defaultColor: RGB(hexOrRGB: "#808080").map { theme.adjusted($0) })
+        )
+        .padding(.top, -2)
+        .padding(.bottom, metrics.bodySize * 0.5)
     }
 
     /// 标题对齐：优先用块上的 `align` 属性，其次页面 CSS 里的 `text-align`。
