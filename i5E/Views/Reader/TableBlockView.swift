@@ -193,10 +193,10 @@ struct TableBlockView: View {
     }
 
     private func alternatingFill(_ row: ContentKit.TableRow, layout: Layout) -> Color {
-        guard zebraEnabled else { return .clear }
+        guard usesZebra else { return .clear }
         let rows = layout.block.rows ?? []
         guard let index = rows.firstIndex(where: { $0 == row }) else { return .clear }
-        return index % 2 == 1 ? theme.border.opacity(0.35) : .clear
+        return index % 2 == 1 ? theme.zebra : .clear
     }
 
     private func cellTextAlignment(_ cell: TableCell) -> TextAlignment {
@@ -215,10 +215,16 @@ struct TableBlockView: View {
         }
     }
 
-    /// 隔行底色：源 HTML 没有，但网页版（WebHelp 模板）会给表格加斑马纹。
-    /// 用 `-zebra 1` 预览。
-    private var zebraEnabled: Bool {
-        UserDefaults.standard.bool(forKey: "zebra")
+    /// 隔行底色：源 HTML 没有，按网页版（WebHelp 模板）的观感加。
+    ///
+    /// 源页自己给了行/单元格底色的不动——两套配色叠在一起会脏。
+    private var usesZebra: Bool {
+        if ancestors.contains("stat-block") { return false }
+        let rows = block.rows ?? []
+        let custom = rows.contains { row in
+            row.bg != nil || row.cells.contains { $0.bg != nil }
+        }
+        return !custom
     }
 
     private func rowColor(_ row: ContentKit.TableRow) -> Color {

@@ -11,6 +11,8 @@ struct ReadingTheme: Sendable {
     let border: Color
     let accent: Color
     let link: Color
+    /// 表格隔行底色（源 HTML 没有，按网页版的观感加）
+    let zebra: Color
 
     static let light = ReadingTheme(
         isDark: false,
@@ -20,7 +22,8 @@ struct ReadingTheme: Sendable {
         muted: Color(themeHex: "#666a70"),
         border: Color(themeHex: "#e0e2e5"),
         accent: Color(themeHex: "#991b1b"),
-        link: Color(themeHex: "#1d5fa7"))
+        link: Color(themeHex: "#1d5fa7"),
+        zebra: Color(themeHex: "#f2f3f5"))
 
     static let dark = ReadingTheme(
         isDark: true,
@@ -30,7 +33,8 @@ struct ReadingTheme: Sendable {
         muted: Color(themeHex: "#a8adb4"),
         border: Color(themeHex: "#34383e"),
         accent: Color(themeHex: "#e16d6d"),
-        link: Color(themeHex: "#72a7e4"))
+        link: Color(themeHex: "#72a7e4"),
+        zebra: Color(themeHex: "#2a2d33"))
 
     static func resolve(_ scheme: ColorScheme) -> ReadingTheme {
         scheme == .dark ? .dark : .light
