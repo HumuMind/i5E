@@ -235,6 +235,9 @@ struct PageScreen: View {
                         }
                     }
                 )
+            } else if model.isReady {
+                // 库已就绪、页面正在读：留白即可，转圈反而会打断翻页动画
+                Color.clear
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }

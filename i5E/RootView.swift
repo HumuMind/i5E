@@ -146,17 +146,31 @@ private struct ReaderContent: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var colorScheme
 
+    /// 前进从右侧、返回从左侧滑入；旧页只淡出，不跟着滑，
+    /// 免得两页文字叠在一起时看不清哪一页是新的。
+    private var pageTransition: AnyTransition {
+        let shift: CGFloat = model.navigationDirection >= 0 ? 40 : -40
+        return .asymmetric(
+            insertion: .offset(x: shift).combined(with: .opacity),
+            removal: .opacity
+        )
+    }
+
     var body: some View {
-        if let route = model.routes.last {
-            PageScreen(
-                route: route, resume: model.routeOffsets.last ?? 0,
-                initialPage: model.cachedPage(route.path)
-            )
-            // 每次前进/后退都换 id：整页重建，顺带按保存的位置重新落位
-            .id(model.navigationToken)
-        } else {
-            loadingOrPlaceholder
+        ZStack {
+            if let route = model.routes.last {
+                PageScreen(
+                    route: route, resume: model.routeOffsets.last ?? 0,
+                    initialPage: model.cachedPage(route.path)
+                )
+                // 每次前进/后退都换 id：整页重建，顺带按保存的位置重新落位
+                .id(model.navigationToken)
+                .transition(pageTransition)
+            } else {
+                loadingOrPlaceholder
+            }
         }
+        .clipped()
     }
 
     /// 启动阶段的根视图。

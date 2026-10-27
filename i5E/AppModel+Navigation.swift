@@ -1,5 +1,6 @@
 import ContentKit
 import Foundation
+import SwiftUI
 
 #if canImport(UIKit)
     import UIKit
@@ -11,20 +12,36 @@ extension AppModel {
 
     /// 打开一页。目录选页与链接跳转都追加到历史，返回按钮才有东西可回。
     ///
-    /// 前进前先把当前页的滚动位置记进 `routeOffsets`，返回时才能回到原处。
+    /// 目标页先读进内存再推：内容在翻页动画开始前就绪，动画才不会被"内容
+    /// 突然出现"打断（否则 SwiftUI 会当成普通更新，直接跳到终态）。
     func show(_ route: Route) {
         if routes.last?.path == route.path, route.offset == nil, route.blockIndex == nil {
             return
         }
-        rememberOffset()
-        routes.append(route)
-        // 书签这类自带位置的入口要沿用它的偏移；普通链接从页首开始
-        routeOffsets.append(route.offset ?? 0)
-        if routes.count > 50 {
-            routes.removeFirst(routes.count - 50)
-            routeOffsets.removeFirst(routeOffsets.count - 50)
+        guard pageCache[route.path] == nil else {
+            pushNow(route)
+            return
         }
-        navigationToken += 1
+        Task {
+            _ = try? await page(path: route.path)
+            pushNow(route)
+        }
+    }
+
+    /// 真正入栈。前进前先把当前页的滚动位置记进 `routeOffsets`，返回时才能回到原处。
+    private func pushNow(_ route: Route) {
+        rememberOffset()
+        withAnimation(.easeOut(duration: 0.22)) {
+            navigationDirection = 1
+            routes.append(route)
+            // 书签这类自带位置的入口要沿用它的偏移；普通链接从页首开始
+            routeOffsets.append(route.offset ?? 0)
+            if routes.count > 50 {
+                routes.removeFirst(routes.count - 50)
+                routeOffsets.removeFirst(routeOffsets.count - 50)
+            }
+            navigationToken += 1
+        }
     }
 
     /// 把当前页的滚动位置写回栈顶。
@@ -98,9 +115,12 @@ extension AppModel {
 
     func goBack() {
         guard routes.count > 1 else { return }
-        routes.removeLast()
-        routeOffsets.removeLast()
-        navigationToken += 1
+        withAnimation(.easeOut(duration: 0.22)) {
+            navigationDirection = -1
+            routes.removeLast()
+            routeOffsets.removeLast()
+            navigationToken += 1
+        }
     }
 
     func push(_ route: Route) {
