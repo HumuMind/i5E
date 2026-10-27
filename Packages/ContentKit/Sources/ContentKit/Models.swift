@@ -100,6 +100,8 @@ public struct Block: Decodable, Sendable, Hashable {
     public var wp: Int?
     /// 源页是否给这张表画了边框（没写 border 属性、页面 CSS 也没加时默认无边框）
     public var bd: Int?
+    /// 表格级 text-align，作用到所有单元格
+    public var ta: String?
 
     public var runsOrEmpty: [Run] { runs ?? [] }
     public var blocksOrEmpty: [Block] { blocks ?? [] }

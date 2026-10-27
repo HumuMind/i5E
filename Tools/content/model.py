@@ -433,6 +433,9 @@ class Builder:
         talign = _table_align(el)
         if talign:
             tb["al"] = talign
+        ttext = _table_text_align(el)
+        if ttext:
+            tb["ta"] = ttext
         if _cls(el):
             tb["cls"] = _cls(el)
         return tb
@@ -448,6 +451,12 @@ def _cell_align(el) -> str | None:
         m = re.search(r"text-align\s*:\s*(\w+)", el.get("style") or "", re.I)
         value = m.group(1).lower() if m else ""
     return {"center": "c", "right": "r", "justify": "j"}.get(value)
+
+
+def _table_text_align(el) -> str | None:
+    """表格级的 `text-align`，会作用到所有单元格。"""
+    m = re.search(r"text-align\s*:\s*(\w+)", el.get("style") or "", re.I)
+    return {"center": "c", "right": "r", "justify": "j"}.get(m.group(1).lower()) if m else None
 
 
 def _table_align(el) -> str | None:

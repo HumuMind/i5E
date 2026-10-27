@@ -148,6 +148,7 @@ struct TableBlockView: View {
                     }
                     .frame(width: layout.totalWidth, alignment: .topLeading)
                     .background(rowColor(row))
+                    .background(alternatingFill(row, layout: layout))
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(rowLabel(row, layout: layout))
                 }
@@ -191,8 +192,15 @@ struct TableBlockView: View {
         .joined(separator: "，")
     }
 
+    private func alternatingFill(_ row: ContentKit.TableRow, layout: Layout) -> Color {
+        guard zebraEnabled else { return .clear }
+        let rows = layout.block.rows ?? []
+        guard let index = rows.firstIndex(where: { $0 == row }) else { return .clear }
+        return index % 2 == 1 ? theme.border.opacity(0.35) : .clear
+    }
+
     private func cellTextAlignment(_ cell: TableCell) -> TextAlignment {
-        switch cell.al {
+        switch cell.al ?? block.ta {
         case "c": .center
         case "r": .trailing
         default: .leading
@@ -200,11 +208,17 @@ struct TableBlockView: View {
     }
 
     private func cellFrameAlignment(_ cell: TableCell) -> Alignment {
-        switch cell.al {
+        switch cell.al ?? block.ta {
         case "c": .top
         case "r": .topTrailing
         default: .topLeading
         }
+    }
+
+    /// 隔行底色：源 HTML 没有，但网页版（WebHelp 模板）会给表格加斑马纹。
+    /// 用 `-zebra 1` 预览。
+    private var zebraEnabled: Bool {
+        UserDefaults.standard.bool(forKey: "zebra")
     }
 
     private func rowColor(_ row: ContentKit.TableRow) -> Color {
