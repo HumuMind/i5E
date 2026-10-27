@@ -604,7 +604,7 @@ def parse_page(path: str, data: bytes) -> dict:
     return {
         "path": path,
         "encoding": enc,
-        "title": _title(doc),
+        "title": _title(doc, blocks),
         "style": style,
         "css": css,
         "blocks": blocks,
@@ -630,7 +630,17 @@ def parse_page(path: str, data: bytes) -> dict:
     }
 
 
-def _title(doc) -> str:
+def _title(doc, blocks: list[dict] | None = None) -> str:
+    """页面标题：优先用正文里的一级标题。
+
+    109 个页面的 `<title>` 是「08 命运」这种简写，h1 才是「第八章：命运 Fates」，
+    搜索结果里显示后者更清楚。
+    """
+    for block in blocks or []:
+        if block.get("type") == "h" and block.get("level") == 1:
+            text = "".join(run.get("t") or "" for run in block.get("runs") or []).strip()
+            if text:
+                return text
     t = doc.find(".//title")
     return (t.text or "").strip() if t is not None else ""
 
