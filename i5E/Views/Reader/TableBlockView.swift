@@ -39,7 +39,9 @@ struct TableBlockView: View {
             case 3...4: 16
             default: 13
             }
-        let available = availableWidth - TableLayoutCalculator.horizontalPadding
+        let available =
+            min(availableWidth, metrics.measure(forAvailable: availableWidth))
+            - TableLayoutCalculator.horizontalPadding
         var widths = TableLayoutCalculator.widths(
             normalized, fontSize: size, available: available)
         // 源页给了显式宽度就按它缩放：px 折算成 pt，百分比按可用宽度算
@@ -276,8 +278,7 @@ struct TableBlockView: View {
                                 runs, size: layout.fontSize, bold: cell.header == true,
                                 theme: theme)
                         )
-                        .multilineTextAlignment(cellTextAlignment(cell))
-                        .frame(maxWidth: .infinity, alignment: cellFrameAlignment(cell))
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     case .image(let run):
                         ContentImageView(run: run, maxWidth: cellWidth)
                     }
@@ -289,8 +290,7 @@ struct TableBlockView: View {
                     inner.runsOrEmpty, size: layout.fontSize, bold: cell.header == true,
                     theme: theme)
             )
-            .multilineTextAlignment(cellTextAlignment(cell))
-            .frame(maxWidth: .infinity, alignment: cellFrameAlignment(cell))
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
