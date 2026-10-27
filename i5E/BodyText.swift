@@ -52,7 +52,7 @@ import ContentKit
                 if run.m != nil {
                     if mention {
                         attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
-                        attributes[.underlineColor] = UIColor(theme.link).withAlphaComponent(0.4)
+                        attributes[.underlineColor] = UIColor(theme.link).withAlphaComponent(0.6)
                     }
                 } else if run.u == 1 || run.href != nil {
                     attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue

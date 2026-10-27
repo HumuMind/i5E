@@ -255,9 +255,8 @@ def _tier(alias: str, frequency: Counter) -> int:
 def apply(records: list[dict]) -> dict:
     """给 records 补自动链接，返回统计。原地修改 blocks。
 
-    每条链接带 `m` = 它最早出现的档位；App 按用户选的详细程度筛。
-    同一页同一目标只留一条，且优先留在档位最低的那次提及上——
-    否则"标准"用户会看到本该在"精简"里出现的链接被藏掉。
+    每条链接带 `m` = 详细程度（1…3），App 按用户选的档位筛。
+    同一目标在一页里被提到几次就链几次——读者点哪一处都应该跳得过去。
     """
     deny = _load_list("mention-deny.txt")
     allow = _load_list("mention-allow.txt")
@@ -276,9 +275,9 @@ def apply(records: list[dict]) -> dict:
 
     for rec in records:
         path = rec["path"]
-        # 第一遍只收集候选：同一目标可能有好几处提及，挑档位最低、位置最靠前的那次
-        candidates: list[tuple] = []
         holders: dict[int, dict] = {}
+        # (容器, 键) -> {run 下标: [候选]}
+        pending: dict[tuple[int, str], dict[int, list[tuple]]] = {}
         order = 0
         for block in rec["blocks"]:
             for holder, key in _linkable_runs(block):
@@ -297,38 +296,25 @@ def apply(records: list[dict]) -> dict:
                             stats["self"] += 1
                             continue
                         order += 1
-                        candidates.append(
-                            (tiers[alias], order, id(holder), key, run_index, start, end, alias, target)
-                        )
+                        pending.setdefault((id(holder), key), {}).setdefault(
+                            run_index, []
+                        ).append((start, end, alias, target, order))
 
-        best: dict[tuple[str, str], tuple] = {}
-        for candidate in candidates:
-            target = candidate[8]
-            current = best.get(target)
-            if current is None or (candidate[0], candidate[1]) < (current[0], current[1]):
-                best[target] = candidate
-
-        # 按"容器 + 键"分组：同一个 run 列表只重建一次，否则拆 run 后下标会漂
-        by_run: dict[tuple[int, str], list[tuple]] = {}
-        for candidate in best.values():
-            by_run.setdefault((candidate[2], candidate[3]), []).append(candidate)
-
-        for (holder_id, key), items in by_run.items():
+        # 按"容器 + 键"重建：同一个 run 列表只重建一次，否则拆 run 后下标会漂
+        added = 0
+        for (holder_id, key), grouped in pending.items():
             holder = holders[holder_id]
             runs = holder.get(key) or []
-            grouped: dict[int, list[tuple]] = {}
-            for candidate in items:
-                grouped.setdefault(candidate[4], []).append(candidate)
             rebuilt: list[dict] = []
             for run_index, run in enumerate(runs):
-                chosen = sorted(grouped.get(run_index, []), key=lambda c: c[5])
+                chosen = sorted(grouped.get(run_index, []), key=lambda c: c[0])
                 if not chosen:
                     rebuilt.append(run)
                     continue
                 text = run["t"]
                 cursor = 0
                 last_end = -1
-                for _, _, _, _, _, start, end, alias, target in chosen:
+                for start, end, alias, target, _ in chosen:
                     if start < cursor:
                         continue
                     # 紧挨着上一条链接的（"倒地"+"状态"）不再链：一条连续下划线
@@ -338,9 +324,11 @@ def apply(records: list[dict]) -> dict:
                     if start > cursor:
                         rebuilt.append({**run, "t": text[cursor:start]})
                     href = target[0] + (("#" + target[1]) if target[1] else "")
-                    rebuilt.append({**run, "t": text[start:end], "href": href, "m": tiers[alias]})
+                    piece = {**run, "t": text[start:end], "href": href, "m": tiers[alias]}
+                    rebuilt.append(piece)
                     cursor = end
                     last_end = end
+                    added += 1
                     stats["links"] += 1
                     stats[f"tier{tiers[alias]}"] += 1
                     used_aliases[alias] += 1
@@ -348,8 +336,8 @@ def apply(records: list[dict]) -> dict:
                     rebuilt.append({**run, "t": text[cursor:]})
             holder[key] = rebuilt
 
-        if best:
-            per_page[path] = len(best)
+        if added:
+            per_page[path] = added
 
     stats["pages"] = len(per_page)
     stats["aliases"] = len(tiers)

@@ -60,8 +60,9 @@ enum AttributedText {
                 if run.u == 1 {
                     piece.underlineStyle = .single
                 } else if mention {
+                    // 自动链接：正文色 + 淡下划线
                     piece.underlineStyle = Text.LineStyle(
-                        pattern: .solid, color: theme.link.opacity(0.4))
+                        pattern: .solid, color: theme.link.opacity(0.6))
                 } else if run.href != nil && run.m == nil {
                     piece.underlineStyle = .single
                 }
