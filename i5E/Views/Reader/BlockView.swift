@@ -12,6 +12,8 @@ struct BlockView: View {
     var availableWidth: CGFloat = ReadingMetrics.standard.measure
     /// 上层容器（如表格单元格）要求的对齐，块自己没有 `al` 时沿用它
     var inheritedAlignment: String? = nil
+    /// 表格可用的宽度：源页的表格常常比正文版心宽，单独给一份
+    var tableWidth: CGFloat = ReadingMetrics.standard.measure
 
     @Environment(\.readingTheme) private var theme
     /// 页面是否引用了上游 style.css；没有的话标题用正文色（浏览器默认黑）
@@ -44,7 +46,8 @@ struct BlockView: View {
         case "list":
             ListBlockView(block: block, highlight: highlight, availableWidth: availableWidth)
         case "table":
-            TableBlockView(block: block, ancestors: ancestors, availableWidth: availableWidth)
+            TableBlockView(
+                block: block, ancestors: ancestors, availableWidth: tableWidth)
         case "quote":
             HStack(alignment: .top, spacing: 12) {
                 Rectangle().fill(.quaternary).frame(width: 3)

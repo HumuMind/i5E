@@ -117,7 +117,8 @@ struct ReaderView: View {
                         case .single(let index):
                             BlockView(
                                 block: page.blocks[index], highlight: highlight,
-                                availableWidth: measureWidth
+                                availableWidth: measureWidth,
+                                tableWidth: max(measureWidth, viewportWidth - 48)
                             )
                             .id(index)
                         case .floating(let index, let tail, let image):
