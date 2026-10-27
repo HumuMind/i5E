@@ -189,9 +189,27 @@ struct BlockView: View {
                 theme: theme, defaultColor: headingDefaultColor, largeText: true)
         )
         .lineSpacing(metrics.bodySize * scale * 0.4)
+        .multilineTextAlignment(headingAlignment)
         .padding(.top, level <= 2 ? 26 : 18)
         .padding(.bottom, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: headingFrameAlignment)
+    }
+
+    /// 标题对齐：优先用块上的 `align` 属性，其次页面 CSS 里的 `text-align`。
+    private var headingAlignment: TextAlignment {
+        switch block.al ?? block.style?.al {
+        case "c", "center": .center
+        case "r", "right": .trailing
+        default: .leading
+        }
+    }
+
+    private var headingFrameAlignment: Alignment {
+        switch block.al ?? block.style?.al {
+        case "c", "center": .center
+        case "r", "right": .trailing
+        default: .leading
+        }
     }
 }
 

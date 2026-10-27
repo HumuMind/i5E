@@ -73,6 +73,8 @@ public struct BlockStyle: Decodable, Sendable, Hashable {
     public var b: Int?
     /// 标题下划线颜色；"1" 表示有下划线但没指定颜色
     public var bd: String?
+    /// 标题对齐：c 居中 / r 右对齐 / j 两端
+    public var al: String?
 }
 
 public struct Block: Decodable, Sendable, Hashable {

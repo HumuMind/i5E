@@ -40,29 +40,40 @@ def heading_styles(html_text: str) -> dict[int, dict]:
     for block in _STYLE_BLOCK.findall(html_text):
         text = _COMMENT.sub("", block)
         for selector, body in _RULE.findall(text):
+            # 选择器可能是列表（`h2,h3,U{...}`），把命中的标题标签都收进来
             names = [s.strip().lower() for s in selector.split(",")]
-            if len(names) != 1 or names[0] not in HEADING_TAGS:
+            levels = [int(name[1]) for name in names if name in HEADING_TAGS]
+            if not levels:
                 continue
-            level = int(names[0][1])
-            for declaration in body.split(";"):
-                if ":" not in declaration:
-                    continue
-                prop, value = declaration.split(":", 1)
-                prop = prop.strip().lower()
-                value = value.strip()
-                if prop == "color":
-                    color = _normalize_color(value)
-                    if color:
-                        found.setdefault(level, {})["c"] = color
-                elif prop == "font-weight" and value.lower() in ("bold", "bolder", "700", "800", "900"):
-                    found.setdefault(level, {})["b"] = 1
-                elif prop in ("border-bottom", "border") and "none" not in value.lower():
-                    # 标题下划线：源页大量使用，颜色可能写在值的任意位置
-                    color = next(
-                        (_normalize_color(token) for token in value.replace(",", " ").split()
-                         if _normalize_color(token)), None)
-                    found.setdefault(level, {})["bd"] = color or "1"
+            for level in levels:
+                _apply_declarations(body, found, level)
     return found
+
+
+def _apply_declarations(body: str, found: dict[int, dict], level: int) -> None:
+    """把一条规则的声明合并进某个标题层级。"""
+    for declaration in body.split(";"):
+        if ":" not in declaration:
+            continue
+        prop, value = declaration.split(":", 1)
+        prop = prop.strip().lower()
+        value = value.strip()
+        if prop == "color":
+            color = _normalize_color(value)
+            if color:
+                found.setdefault(level, {})["c"] = color
+        elif prop == "font-weight" and value.lower() in ("bold", "bolder", "700", "800", "900"):
+            found.setdefault(level, {})["b"] = 1
+        elif prop == "text-align":
+            mapped = {"center": "c", "right": "r", "justify": "j", "left": "l"}.get(value.lower())
+            if mapped and mapped != "l":
+                found.setdefault(level, {})["al"] = mapped
+        elif prop in ("border-bottom", "border") and "none" not in value.lower():
+            # 标题下划线：源页大量使用，颜色可能写在值的任意位置
+            color = next(
+                (_normalize_color(token) for token in value.replace(",", " ").split()
+                 if _normalize_color(token)), None)
+            found.setdefault(level, {})["bd"] = color or "1"
 
 
 def table_has_border(html_text: str) -> bool:
