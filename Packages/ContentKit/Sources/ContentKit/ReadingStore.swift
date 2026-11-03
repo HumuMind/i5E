@@ -54,16 +54,102 @@ public struct RecentPage: Codable, Sendable, Identifiable, Hashable {
     }
 }
 
+/// 一个可配置的快捷键：主键 + 修饰键。
+///
+/// `key` 是单个字符（如 "f"、"="、"]"），或特殊键的固定名字（"upArrow"、"return"）。
+/// 用普通字符串而不是 SwiftUI 的 KeyEquivalent，是为了让 ContentKit 不依赖 UI 框架。
+public struct KeyShortcut: Codable, Sendable, Hashable {
+    public var key: String
+    public var command: Bool
+    public var shift: Bool
+    public var option: Bool
+    public var control: Bool
+
+    public init(
+        key: String, command: Bool = false, shift: Bool = false, option: Bool = false,
+        control: Bool = false
+    ) {
+        self.key = key
+        self.command = command
+        self.shift = shift
+        self.option = option
+        self.control = control
+    }
+}
+
+/// 一个标签页的持久化快照。
+///
+/// 只存当前页和滚动位置：返回/前进历史是会话内的，重启后不恢复。
+public struct TabSnapshot: Codable, Sendable, Identifiable, Hashable {
+    public var id: UUID
+    public var title: String
+    public var path: String
+    public var offset: Int
+
+    public init(id: UUID = UUID(), title: String, path: String, offset: Int) {
+        self.id = id
+        self.title = title
+        self.path = path
+        self.offset = offset
+    }
+}
+
 /// 阅读器里需要跨启动记住的杂项状态。
 public struct ReaderState: Codable, Sendable {
     /// 目录里手动展开过的节点（用节点的路径标识）。
     public var expandedNodes: Set<String> = []
+    /// 目录里手动折叠过的节点。显式折叠优先于"当前页所在分支自动展开"，见 0038 补记。
+    public var collapsedNodes: Set<String> = []
     /// 最近打开过的页面，最新在前。
     public var recentPages: [RecentPage] = []
     /// 搜索过的词，最新在前。
     public var searchHistory: [String] = []
+    /// 标签页，顺序就是 tab 条里的顺序。
+    public var tabs: [TabSnapshot] = []
+    /// 当前标签页；写在 tabs 的 id 上，找不到时回落到第一个。
+    public var activeTabID: UUID?
+    /// 自定义快捷键：动作标识 → 按键。没有的动作用默认值。
+    public var shortcuts: [String: KeyShortcut] = [:]
 
     public init() {}
+
+    private enum CodingKeys: String, CodingKey {
+        case expandedNodes, collapsedNodes, recentPages, searchHistory, tabs, activeTabID
+        case shortcuts
+    }
+
+    /// 手写解码：旧版本没有 `collapsedNodes` / `tabs` 等字段，缺字段时按空值处理，
+    /// 否则升级后会把整份 `ReaderState` 当作损坏而丢掉。
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        expandedNodes =
+            try container.decodeIfPresent(Set<String>.self, forKey: .expandedNodes) ?? []
+        collapsedNodes =
+            try container.decodeIfPresent(Set<String>.self, forKey: .collapsedNodes) ?? []
+        recentPages =
+            try container.decodeIfPresent([RecentPage].self, forKey: .recentPages) ?? []
+        searchHistory =
+            try container.decodeIfPresent([String].self, forKey: .searchHistory) ?? []
+        tabs = try container.decodeIfPresent([TabSnapshot].self, forKey: .tabs) ?? []
+        activeTabID = try container.decodeIfPresent(UUID.self, forKey: .activeTabID)
+        shortcuts =
+            try container.decodeIfPresent([String: KeyShortcut].self, forKey: .shortcuts) ?? [:]
+    }
+}
+
+extension ReaderState {
+    /// 目录节点是否展开。优先级：手动折叠 > 手动展开 > 当前页所在分支自动展开。
+    ///
+    /// `ancestors` 是"页面路径 → 从顶层到该页的节点标识链"，由 TOC 构建时生成。
+    /// 手动折叠必须压过自动展开：当前页就在这一节里时，用户也应该能把目录折起来。
+    public func isTOCNodeExpanded(
+        _ nodeID: String, currentPath: String?, ancestors: [String: [String]]
+    ) -> Bool {
+        if collapsedNodes.contains(nodeID) { return false }
+        if expandedNodes.contains(nodeID) { return true }
+        guard let currentPath else { return false }
+        return ancestors[currentPath]?.contains(nodeID) ?? false
+    }
 }
 
 /// 存储接口。现在只有 UserDefaults 实现；换文件或 iCloud 时只换这里。

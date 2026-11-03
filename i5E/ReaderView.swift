@@ -9,6 +9,15 @@ enum Reading {
     static var lineSpacing: CGFloat { bodySize * (lineHeightMultiple - 1) }
 }
 
+/// 目标 block 在滚动视口里的 y 位置，用来确认"恢复定位"真的落到了目标上。
+private struct TargetBlockYKey: PreferenceKey {
+    static let defaultValue: CGFloat? = nil
+
+    static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
+        if let next = nextValue() { value = next }
+    }
+}
+
 struct ReaderView: View {
     let page: Page
     var highlight: String?
@@ -24,12 +33,16 @@ struct ReaderView: View {
 
     private var theme: ReadingTheme { .resolve(colorScheme) }
 
+    private static let scrollSpace = "readerScroll"
+
     /// 阅读区实际宽度，表格按它算列宽（窄屏时小于版心）。
     /// 滚动区域宽度（未被版心约束），版心由它推算。
     @State private var viewportWidth: CGFloat = ReadingMetrics.standard.measure
 
     private var measureWidth: CGFloat { metrics.measure(forAvailable: viewportWidth) }
     @State private var topBlock: Int?
+    /// 目标 block 当前在视口里的 y；nil 表示还没渲染出来。
+    @State private var targetBlockY: CGFloat?
     /// 定位完成前先不画正文：否则会先露一眼页首，再跳到目标位置
     @State private var readyToShow: Bool
 
@@ -42,7 +55,8 @@ struct ReaderView: View {
         self.scrollTarget = scrollTarget
         self.topInset = topInset
         self.onPositionChange = onPositionChange
-        _topBlock = State(initialValue: scrollTarget)
+        // 目标位置等布局完成后再写进 scrollPosition，见下面的 .task
+        _topBlock = State(initialValue: nil)
         _readyToShow = State(initialValue: scrollTarget == nil)
     }
 
@@ -91,6 +105,18 @@ struct ReaderView: View {
         block.runsOrEmpty.first { $0.img != nil && $0.align == "right" }
     }
 
+    /// 只给目标 block 挂一个位置探针。
+    @ViewBuilder
+    private func targetReader(_ index: Int) -> some View {
+        if index == scrollTarget {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: TargetBlockYKey.self,
+                    value: proxy.frame(in: .named(Self.scrollSpace)).minY)
+            }
+        }
+    }
+
     private func floatingGroup(head: Int, tail: [Int], image: Run, width: CGFloat) -> some View {
         HStack(alignment: .top, spacing: 18) {
             VStack(alignment: .leading, spacing: 0) {
@@ -99,12 +125,14 @@ struct ReaderView: View {
                     availableWidth: width * 0.55
                 )
                 .id(head)
+                .background { targetReader(head) }
                 ForEach(tail, id: \.self) { index in
                     BlockView(
                         block: page.blocks[index], highlight: highlight,
                         availableWidth: width * 0.55
                     )
                     .id(index)
+                    .background { targetReader(index) }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -133,6 +161,7 @@ struct ReaderView: View {
                                 availableWidth: measureWidth
                             )
                             .id(index)
+                            .background { targetReader(index) }
                         case .floating(let index, let tail, let image):
                             floatingGroup(
                                 head: index, tail: tail, image: image, width: measureWidth)
@@ -147,6 +176,7 @@ struct ReaderView: View {
                 .padding(.bottom, 40)
                 .frame(maxWidth: .infinity)
                 .background(theme.surface)
+                .textSelection(.enabled)
                 .accessibilityIdentifier("reader.content")
             }
             .background(theme.background)
@@ -155,8 +185,13 @@ struct ReaderView: View {
             } action: { width in
                 viewportWidth = width
             }
+            .coordinateSpace(name: Self.scrollSpace)
             .scrollPosition(id: $topBlock)
+            .onPreferenceChange(TargetBlockYKey.self) { targetBlockY = $0 }
             .onChange(of: topBlock) { _, newValue in
+                // 定位完成前不回报：ScrollView 初始布局会先报一次顶部（0），
+                // 那一下会把从 tab / 历史恢复出来的偏移冲掉。
+                guard readyToShow else { return }
                 // 立即回报：返回上一页时要用最新位置，不能等防抖
                 guard let newValue,
                     let offset = PageText.offset(ofBlock: newValue, in: page.blocks)
@@ -176,10 +211,20 @@ struct ReaderView: View {
                     readyToShow = true
                     return
                 }
-                // 等一帧把布局算出来再滚，否则 scrollTo 会落空。
-                // 这期间正文是不可见的：先露页首再跳会看起来像卡了一下。
-                try? await Task.sleep(for: .milliseconds(50))
+                // 切 tab / 返回时整页重建，ScrollView 的初始布局会先把位置停在顶部；
+                // 直接把位置写进 scrollPosition 或只滚一次都可能落空，之后要等用户滚一下才补上。
+                // 这里滚动后测量目标 block 在视口里的位置，确认真的到顶了才显示正文；没到就重试。
+                targetBlockY = nil
+                try? await Task.sleep(for: .milliseconds(30))
+                for _ in 0..<20 {
+                    if Task.isCancelled { return }
+                    proxy.scrollTo(scrollTarget, anchor: .top)
+                    try? await Task.sleep(for: .milliseconds(40))
+                    if let y = targetBlockY, abs(y) <= 4 { break }
+                }
+                // 最后再对齐一次，并给滚动一帧时间提交，然后才显示
                 proxy.scrollTo(scrollTarget, anchor: .top)
+                try? await Task.sleep(for: .milliseconds(30))
                 readyToShow = true
             }
         }
@@ -243,6 +288,10 @@ struct PageScreen: View {
             }
         }
         .task(id: route) { await load() }
+        .onDisappear {
+            // 切标签页后旧页不要再把延迟的滚动位置写回来
+            saveTask?.cancel()
+        }
         .onChange(of: model.phase) { _, newValue in
             if case .ready = newValue, page == nil {
                 Task { await load() }

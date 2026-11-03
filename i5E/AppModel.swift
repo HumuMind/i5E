@@ -15,16 +15,33 @@ import ContentKit
 final class AppModel {
 
     init() {
-        // 同步恢复上次位置：UserDefaults 读取不需要等异步启动，
+        #if DEBUG
+            // UI 测试用独立 suite，别碰用户自己的阅读状态和快捷键
+            if let suite = UserDefaults.standard.string(forKey: "testDefaultsSuite"),
+                let defaults = UserDefaults(suiteName: suite)
+            {
+                store = UserDefaultsReadingStore(defaults: defaults)
+            } else {
+                store = UserDefaultsReadingStore()
+            }
+        #else
+            store = UserDefaultsReadingStore()
+        #endif
+
+        // 同步恢复状态：UserDefaults 读取不需要等异步启动，
         // 这样第一帧就有页面（内容会短暂转圈，但不会闪出空白占位）。
-        if let last = store.loadPosition() {
-            routes = [Route(path: last.path, offset: last.offset)]
-        }
-        // 调试与截图用：`-openPage <路径>` 直接打开某一页
+        state = store.loadState()
+        restoreTabs()
+        // 调试与截图用：`-openPage <路径>` 直接打开某一页（替换当前标签页）
         if let raw = UserDefaults.standard.string(forKey: "openPage"), !raw.isEmpty {
             routes = [Route(path: raw)]
+            routeOffsets = [0]
+            forwardRoutes = []
+            forwardOffsets = []
+            saveActiveTab()
+        } else {
+            loadActiveTab()
         }
-        routeOffsets = routes.map { $0.offset ?? 0 }
     }
 
     enum Phase: Equatable {
@@ -45,10 +62,31 @@ final class AppModel {
         var offset: Int? = nil
     }
 
+    /// 一个标签页的会话状态。
+    ///
+    /// 只有当前标签页的 `routes` 等字段直接放在 `AppModel` 上；切走时
+    /// `loadActiveTab` / `saveActiveTab` 负责在两者之间搬运。
+    struct Tab: Identifiable {
+        let id: UUID
+        var title: String
+        var routes: [Route]
+        var routeOffsets: [Int]
+        var forwardRoutes: [Route]
+        var forwardOffsets: [Int]
+    }
+
     /// 详情列的导航栈。
     var routes: [Route] = []
     /// 与 `routes` 一一对应：每页离开时的滚动位置（字符偏移），返回时用它复位。
     var routeOffsets: [Int] = []
+    /// 后退时弹出的页面，按弹出的先后顺序存放；最后一个就是"前进"要去的那页。
+    var forwardRoutes: [Route] = []
+    /// 与 `forwardRoutes` 一一对应。
+    var forwardOffsets: [Int] = []
+    /// 标签页；顺序就是 tab 条里的顺序。
+    var tabs: [Tab] = []
+    /// 当前标签页。切 tab 时先保存旧页、再装载新页。
+    var activeTabID = UUID()
     /// 每次前进/后退自增。页面视图以它为 id，导航时整体重建。
     var navigationToken = 0
     /// 最近一次导航的方向：+1 前进 / -1 返回。转场据此决定从哪边滑入。
@@ -66,6 +104,10 @@ final class AppModel {
     var showSettings = false
     /// 每次自增表示"请聚焦搜索框"。
     var searchFocusToken = 0
+    /// 快捷键改过之后自增，Mac 菜单据此同步。
+    var shortcutRevision = 0
+    /// 正在录制快捷键：全局的关闭标签页监听要让路。
+    var isRecordingShortcut = false
     /// 目录里所有可打开页面的顺序，用于上一页/下一页。
     var orderedPaths: [String] = []
     /// 页面路径 → 它所在分支的节点标识（用于自动展开目录）。
@@ -80,7 +122,7 @@ final class AppModel {
     var isSearching = false
 
     var db: ContentDatabase?
-    let store: ReadingStore = UserDefaultsReadingStore()
+    let store: ReadingStore
     var bookmarks: [Bookmark] = []
     /// 阅读排版尺寸，随字号档位变化。
     var metrics: ReadingMetrics = .standard
@@ -126,7 +168,6 @@ final class AppModel {
             chapterPath = built.paths
             orderedPaths = built.order
             ancestorNodes = built.ancestors
-            state = store.loadState()
 
             bookmarks = store.bookmarks()
             showDrawer = UserDefaults.standard.bool(forKey: "openDrawer")
@@ -157,6 +198,9 @@ final class AppModel {
             if routes.isEmpty, let first = orderedPaths.first {
                 // 首次启动直接进第一页，不显示空白占位
                 routes = [Route(path: first)]
+                routeOffsets = [0]
+                saveActiveTab()
+                persistTabs()
             }
             phase = .ready
         } catch {

@@ -4,8 +4,24 @@ import SwiftUI
 /// 设置内容。外层由 `OverlayPanel` 提供卡片与关闭行为。
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
+    #if os(macOS)
+        // 调试/截图用：`-openSettings 1 -openShortcuts 1` 直接进快捷键页
+        @State private var showShortcuts = UserDefaults.standard.bool(forKey: "openShortcuts")
+    #endif
 
     var body: some View {
+        #if os(macOS)
+            if showShortcuts {
+                ShortcutsView { showShortcuts = false }
+            } else {
+                settingsForm
+            }
+        #else
+            settingsForm
+        #endif
+    }
+
+    private var settingsForm: some View {
         Form {
             Section {
                 Picker(
@@ -51,6 +67,27 @@ struct SettingsView: View {
             } header: {
                 Text("跳转")
             }
+
+            #if os(macOS)
+                Section("快捷键") {
+                    Button {
+                        showShortcuts = true
+                    } label: {
+                        HStack {
+                            Text("配置快捷键")
+                            Spacer()
+                            Text("\(model.shortcut(for: .search).display) 等")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            Image(systemName: "chevron.forward")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            #endif
 
             Section("内容") {
                 LabeledContent("页面", value: "\(model.pageCount)")

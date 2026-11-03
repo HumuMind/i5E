@@ -34,6 +34,7 @@ struct TOCTree: View {
                                         .foregroundStyle(.secondary)
                                         .lineLimit(1)
                                 }
+                                .rowHitArea()
                             }
                             .buttonStyle(.plain)
                             .swipeActions {
@@ -85,7 +86,7 @@ struct NodeRows: View {
     private var expanded: Binding<Bool> {
         Binding(
             get: { model.isExpanded(node.id) },
-            set: { _ in model.toggleExpansion(node.id) })
+            set: { model.setExpanded(node.id, $0) })
     }
 
     var body: some View {
@@ -142,6 +143,6 @@ struct NodeRows: View {
                 Capsule().fill(highlight).frame(width: 3).padding(.vertical, 1)
             }
         }
-        .contentShape(Rectangle())
+        .rowHitArea()
     }
 }

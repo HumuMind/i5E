@@ -17,6 +17,8 @@ struct SearchResultsView: View {
                     model.show(
                         AppModel.Route(
                             path: hit.path, blockIndex: hit.blockIndex, highlight: model.query))
+                    // 目标是阅读区：面板还开着就会把刚跳过去的那页盖住
+                    model.showSearch = false
                 } label: {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 6) {
@@ -44,6 +46,7 @@ struct SearchResultsView: View {
                         }
                     }
                     .padding(.vertical, 2)
+                    .rowHitArea()
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("search.result.\(hit.id)")
@@ -146,6 +149,7 @@ struct SearchPanel: View {
                                     .foregroundStyle(.secondary)
                                 Text(term)
                             }
+                            .rowHitArea()
                         }
                         .buttonStyle(.plain)
                     }
@@ -181,6 +185,7 @@ struct SearchPanel: View {
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
                             }
+                            .rowHitArea()
                         }
                         .buttonStyle(.plain)
                     }

@@ -37,6 +37,6 @@ SwiftUI 里能做可拖动侧栏的是 `NavigationSplitView`，但 0035 已经�
 ## 后果
 
 - Mac 上翻目录从三次操作降到一次，且翻的时候正文不被遮住。
-- 目录列的展开状态沿用 `ReaderState.expandedNodes`，与 iPad 抽屉共享同一份记忆。
+- 目录列的展开状态沿用 `ReaderState` 的展开/折叠记录，与 iPad 抽屉共享同一份记忆。
 - 侧栏会跟随当前页滚动（[0038](0038-state-and-search.md) 补记）：跳转、翻页、启动恢复之后，
   目录自动滚到当前条目；抽屉与常驻列共用同一个 `TOCTree`，两端行为一致。

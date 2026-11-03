@@ -1,6 +1,10 @@
 import ContentKit
 import SwiftUI
 
+#if os(macOS)
+    import AppKit
+#endif
+
 /// 阅读界面。
 ///
 /// iPhone 与 iPad：全屏内容 + 浮动按钮 + 抽屉式目录（见 0035）。
@@ -15,8 +19,42 @@ struct RootView: View {
             #endif
         }
         .modifier(Panels())
+        #if os(macOS)
+            .modifier(TabCloseShortcut())
+        #endif
     }
 }
+
+#if os(macOS)
+    /// Cmd+W：有多个标签页时只关当前 tab，只剩一个时交回系统关窗口。
+    private struct TabCloseShortcut: ViewModifier {
+        @Environment(AppModel.self) private var model
+        @State private var monitor: Any?
+
+        func body(content: Content) -> some View {
+            content
+                .onAppear {
+                    guard monitor == nil else { return }
+                    monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                        let handled = MainActor.assumeIsolated { () -> Bool in
+                            guard !model.isRecordingShortcut else { return false }
+                            let shortcut = model.shortcut(for: .closeTab)
+                            guard shortcut.matches(event), model.tabs.count > 1 else {
+                                return false
+                            }
+                            model.closeActiveTab()
+                            return true
+                        }
+                        return handled ? nil : event
+                    }
+                }
+                .onDisappear {
+                    if let monitor { NSEvent.removeMonitor(monitor) }
+                    monitor = nil
+                }
+        }
+    }
+#endif
 
 // MARK: - 两个平台的骨架
 
@@ -27,17 +65,22 @@ private struct CompactRoot: View {
     var body: some View {
         @Bindable var model = model
         ZStack(alignment: .top) {
-            ReaderContent()
-                .hideNavigationChrome()
+            VStack(spacing: 0) {
+                TabBar()
+                ZStack(alignment: .top) {
+                    ReaderContent()
+                        .hideNavigationChrome()
 
-            if !model.showDrawer {
-                FloatingBar(
-                    showDrawer: $model.showDrawer, showSettings: $model.showSettings,
-                    canGoBack: model.routes.count > 1
-                )
-                .padding(.horizontal, 14)
-                .padding(.top, 10)
-                .transition(.opacity)
+                    if !model.showDrawer {
+                        FloatingBar(
+                            showDrawer: $model.showDrawer, showSettings: $model.showSettings,
+                            canGoBack: model.canGoBack, canGoForward: model.canGoForward
+                        )
+                        .padding(.horizontal, 14)
+                        .padding(.top, 10)
+                        .transition(.opacity)
+                    }
+                }
             }
         }
         .overlay {
@@ -72,19 +115,34 @@ private struct CompactRoot: View {
                 Rectangle()
                     .fill(theme.border)
                     .frame(width: 1)
-                ZStack(alignment: .top) {
-                    ReaderContent()
-                        .hideNavigationChrome()
-                    FloatingBar(
-                        showDrawer: $model.showDrawer, showSettings: $model.showSettings,
-                        canGoBack: model.routes.count > 1, showsTOCButton: false
-                    )
-                    .padding(.horizontal, 14)
-                    .padding(.top, 10)
+                VStack(spacing: 0) {
+                    // 只占正文列，不压到左侧目录
+                    TabBar()
+                    ZStack(alignment: .top) {
+                        ReaderContent()
+                            .hideNavigationChrome()
+                        FloatingBar(
+                            showDrawer: $model.showDrawer, showSettings: $model.showSettings,
+                            canGoBack: model.canGoBack, canGoForward: model.canGoForward,
+                            showsTOCButton: false
+                        )
+                        .padding(.horizontal, 14)
+                        .padding(.top, 10)
+                    }
                 }
             }
             // 再窄就压到版心了；宽度下限给目录留 300，正文留 420
             .frame(minWidth: MacLayout.minWindowWidth, minHeight: 480)
+            .onAppear {
+                // 菜单由 SwiftUI 生成，等它搭好再按当前的快捷键配置校准一次
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(300))
+                    MenuShortcuts.apply(model)
+                }
+            }
+            .onChange(of: model.shortcutRevision) { _, _ in
+                MenuShortcuts.apply(model)
+            }
         }
     }
 #endif

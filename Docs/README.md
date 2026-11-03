@@ -63,7 +63,7 @@
 | I27 | TestFlight | [0034](decisions/0034-testflight.md) · 待定（个人阶段不启用） |
 | I28 | 信息架构 | [0035](decisions/0035-navigation.md) · 已定（全屏 + 浮动按钮 + 抽屉） |
 | I29 | Mac 窗口 | [0036](decisions/0036-mac-window.md) · 已定（单窗口 + 快捷键） |
-| I30 | 分享复制 | [0037](decisions/0037-no-sharing.md) · 不做 |
+| I30 | 分享复制 | [0037](decisions/0037-no-sharing.md) · 复制已放开（见 I46），分享/导出不做 |
 | I31 | 状态与搜索 | [0038](decisions/0038-state-and-search.md) · 已定（展开记忆 + 搜索面板） |
 | I32 | 内容版本 | [0039](decisions/0039-content-version.md) · 已定（设置页显示上游版本） |
 | I33 | 启动自检 | [0040](decisions/0040-integrity-check.md) · 已定（quick_check + 重装指引） |
@@ -79,4 +79,7 @@
 | I43 | Mac 目录 | [0050](decisions/0050-mac-sidebar.md) · 已定（常驻左列，无按钮无抽屉） |
 | I44 | 自动链接 | [0051](decisions/0051-auto-mentions.md) · 已定（构建期补链接，四档详细程度） |
 | I45 | 窗口与尺寸 | [0052](decisions/0052-window-and-size.md) · 已定（单窗口；iPad 全屏） |
+| I46 | 正文复制 | [0053](decisions/0053-copy-support.md) · 已定（选中复制，不做导出） |
+| I47 | 多标签页 | [0054](decisions/0054-tabs.md) · 已定（每 tab 独立历史；正文列顶部） |
+| I48 | 快捷键 | [0055](decisions/0055-custom-shortcuts.md) · 已定（macOS 可配置） |
 

@@ -114,8 +114,8 @@ import ContentKit
             let view = UITextView()
             view.isEditable = false
             view.isScrollEnabled = false
-            // 不选中：长按不再出现选择手柄。链接改由手势命中，见 Coordinator.handleTap
-            view.isSelectable = false
+            // 可选中：长按就能选词、复制（见 0053）。链接由 UITextViewDelegate 处理
+            view.isSelectable = true
             view.backgroundColor = .clear
             view.textContainerInset = .zero
             view.textContainer.lineFragmentPadding = 0
@@ -123,9 +123,6 @@ import ContentKit
             // 链接的颜色与下划线由富文本自己决定（自动链接是淡下划线，不是链接蓝）
             view.linkTextAttributes = [:]
             view.delegate = context.coordinator
-            let tap = UITapGestureRecognizer(
-                target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
-            view.addGestureRecognizer(tap)
             view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
             return view
         }
@@ -152,28 +149,35 @@ import ContentKit
                 self.onOpenLink = onOpenLink
             }
 
+            /// 点链接：交给 App 内部跳转，不让系统拿去开 Safari。
             func textView(
-                _ textView: UITextView, shouldInteractWith URL: URL, in characterRange: NSRange,
-                interaction: UITextItemInteraction
-            ) -> Bool {
+                _ textView: UITextView, primaryActionFor textItem: UITextItem,
+                defaultAction: UIAction
+            ) -> UIAction? {
+                guard case .link(let url) = textItem.content else { return defaultAction }
                 let handler = onOpenLink
-                MainActor.assumeIsolated { handler?(URL) }
-                return false
+                return UIAction { _ in
+                    MainActor.assumeIsolated { handler?(url) }
+                }
             }
 
-            /// 正文不可选中，链接靠手势命中：先算点击处的字符，再看那里有没有 .link。
-            @objc func handleTap(_ gesture: UITapGestureRecognizer) {
-                guard let textView = gesture.view as? UITextView else { return }
-                let point = gesture.location(in: textView)
-                let index = textView.layoutManager.characterIndex(
-                    for: point, in: textView.textContainer,
-                    fractionOfDistanceBetweenInsertionPoints: nil)
-                let storage = textView.textStorage
-                guard index < storage.length else { return }
-                guard let url = storage.attribute(.link, at: index, effectiveRange: nil) as? URL
-                else { return }
-                let handler = onOpenLink
-                MainActor.assumeIsolated { handler?(url) }
+            /// 长按链接：默认菜单里的"打开链接"会跳出 App，这里换成自己的两项。
+            func textView(
+                _ textView: UITextView, menuConfigurationFor textItem: UITextItem,
+                defaultMenu: UIMenu
+            ) -> UITextItem.MenuConfiguration? {
+                guard case .link(let url) = textItem.content else {
+                    return .init(menu: defaultMenu)
+                }
+                let text = (textView.text as NSString).substring(with: textItem.range)
+                let open = UIAction(title: "打开") { [weak self] _ in
+                    let handler = self?.onOpenLink
+                    MainActor.assumeIsolated { handler?(url) }
+                }
+                let copy = UIAction(title: "复制文字") { _ in
+                    MainActor.assumeIsolated { UIPasteboard.general.string = text }
+                }
+                return .init(menu: UIMenu(children: [open, copy]))
             }
         }
     }

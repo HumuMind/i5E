@@ -28,6 +28,7 @@ struct ReferenceView: View {
             filterBar
             Divider().overlay(theme.border)
             content
+                .textSelection(.enabled)
         }
         .background(theme.background)
         .environment(\.readingTheme, theme)

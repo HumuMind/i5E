@@ -28,6 +28,10 @@ extension AppModel {
         }
     }
 
+    /// 浮动按钮的可用状态。栈空时按钮仍然显示，只是禁用。
+    var canGoBack: Bool { routes.count > 1 }
+    var canGoForward: Bool { !forwardRoutes.isEmpty }
+
     /// 系统开了"减弱动态效果"就不做转场。
     private var reduceMotion: Bool {
         #if canImport(UIKit)
@@ -44,19 +48,28 @@ extension AppModel {
     }
 
     /// 真正入栈。前进前先把当前页的滚动位置记进 `routeOffsets`，返回时才能回到原处。
-    private func pushNow(_ route: Route) {
+    /// - Parameters:
+    ///   - offset: 明确指定的落点，从前进栈恢复时用。
+    ///   - fromForward: 从前进栈过来时不清空前向历史。
+    private func pushNow(_ route: Route, offset: Int? = nil, fromForward: Bool = false) {
         rememberOffset()
         withAnimation(navigationAnimation) {
+            if !fromForward {
+                // 普通的"打开新页"会截断前进历史，和浏览器一致
+                forwardRoutes.removeAll()
+                forwardOffsets.removeAll()
+            }
             navigationDirection = 1
             routes.append(route)
             // 书签这类自带位置的入口要沿用它的偏移；普通链接从页首开始
-            routeOffsets.append(route.offset ?? 0)
+            routeOffsets.append(offset ?? route.offset ?? 0)
             if routes.count > 50 {
                 routes.removeFirst(routes.count - 50)
                 routeOffsets.removeFirst(routeOffsets.count - 50)
             }
             navigationToken += 1
         }
+        persistTabs()
     }
 
     /// 把当前页的滚动位置写回栈顶。
@@ -128,14 +141,43 @@ extension AppModel {
         show(Route(path: orderedPaths[next]))
     }
 
+    /// 后退：把当前页连同滚动位置存进前进栈，再回到上一页。
     func goBack() {
-        guard routes.count > 1 else { return }
+        guard canGoBack else { return }
+        rememberOffset()
         withAnimation(navigationAnimation) {
             navigationDirection = -1
-            routes.removeLast()
-            routeOffsets.removeLast()
+            if let route = routes.popLast(), let offset = routeOffsets.popLast() {
+                forwardRoutes.append(route)
+                forwardOffsets.append(offset)
+            }
             navigationToken += 1
         }
+        persistTabs()
+    }
+
+    /// 前进：回到刚才后退离开的那一页和位置。
+    ///
+    /// 目标页可能已经不在缓存里，先读进来再推；等加载期间用户可能又后退或
+    /// 打开了别的页，所以推之前要确认前进栈顶还是同一页。
+    func goForward() {
+        guard let target = forwardRoutes.last else { return }
+        guard pageCache[target.path] == nil else {
+            performForward()
+            return
+        }
+        Task {
+            _ = try? await page(path: target.path)
+            guard forwardRoutes.last == target else { return }
+            performForward()
+        }
+    }
+
+    private func performForward() {
+        guard let route = forwardRoutes.last, let offset = forwardOffsets.last else { return }
+        forwardRoutes.removeLast()
+        forwardOffsets.removeLast()
+        pushNow(route, offset: offset, fromForward: true)
     }
 
     func push(_ route: Route) {
@@ -171,7 +213,25 @@ extension AppModel {
         pageCache[page.path] = page
     }
 
+    /// 按住设置里选定的修饰键点时用新标签页打开链接（见 0054 / 0055 补记）。
+    var isLinkNewTabModifierDown: Bool {
+        #if canImport(AppKit)
+            let shortcut = shortcut(for: .openLinkInNewTab)
+            guard shortcut.command || shortcut.option || shortcut.control || shortcut.shift
+            else { return false }
+            let flags = NSEvent.modifierFlags
+            return flags.contains(.command) == shortcut.command
+                && flags.contains(.option) == shortcut.option
+                && flags.contains(.control) == shortcut.control
+                && flags.contains(.shift) == shortcut.shift
+        #else
+            false
+        #endif
+    }
+
     /// 处理正文里的链接：外链出去，本页锚点原地滚，跨页压栈。
+    ///
+    /// Cmd+点击在 macOS 上改成新标签页打开；普通点击仍在当前标签页跳转。
     func handleLink(_ url: URL) {
         if let scheme = url.scheme?.lowercased(),
             ["http", "https", "mailto"].contains(scheme)
@@ -185,10 +245,20 @@ extension AppModel {
         }
 
         let (path, anchor) = Page.splitURL(url)
+        let route: Route?
         if let path, !path.isEmpty {
-            push(Route(path: path, anchor: anchor))
+            route = Route(path: path, anchor: anchor)
         } else if let anchor, let current = routes.last {
-            push(Route(path: current.path, anchor: anchor))
+            route = Route(path: current.path, anchor: anchor)
+        } else {
+            route = nil
+        }
+        guard let route else { return }
+
+        if isLinkNewTabModifierDown {
+            openInNewTab(route)
+        } else {
+            push(route)
         }
     }
 }

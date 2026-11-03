@@ -390,16 +390,83 @@ final class ReaderStateTests: XCTestCase {
         let s = store()
         var state = s.loadState()
         XCTAssertTrue(state.expandedNodes.isEmpty)
+        XCTAssertTrue(state.collapsedNodes.isEmpty)
 
         state.expandedNodes = ["a|b|2", "c|d|0"]
+        state.collapsedNodes = ["a|b|1"]
         state.recentPages = [RecentPage(path: "x.htm", title: "某页")]
         state.searchHistory = ["火球", "先攻"]
+        let activeTab = UUID()
+        state.tabs = [
+            TabSnapshot(id: activeTab, title: "三环", path: "x.htm", offset: 120),
+            TabSnapshot(title: "骷髅", path: "y.htm", offset: 0),
+        ]
+        state.activeTabID = activeTab
+        state.shortcuts = ["search": KeyShortcut(key: "g", command: true)]
         s.saveState(state)
 
         let loaded = s.loadState()
         XCTAssertEqual(loaded.expandedNodes, ["a|b|2", "c|d|0"])
+        XCTAssertEqual(loaded.collapsedNodes, ["a|b|1"])
         XCTAssertEqual(loaded.recentPages.first?.path, "x.htm")
         XCTAssertEqual(loaded.searchHistory, ["火球", "先攻"])
+        XCTAssertEqual(loaded.tabs, state.tabs)
+        XCTAssertEqual(loaded.activeTabID, activeTab)
+        XCTAssertEqual(loaded.shortcuts, state.shortcuts)
+    }
+
+    /// 旧版本的 JSON 没有 collapsedNodes；升级后不能把整份状态解坏。
+    func testStateDecodesLegacyJSONWithoutCollapsedNodes() throws {
+        let legacy = """
+            {"expandedNodes":["a|b|0"],"recentPages":[],"searchHistory":["火球"]}
+            """
+        let decoded = try JSONDecoder().decode(
+            ReaderState.self, from: Data(legacy.utf8))
+        XCTAssertEqual(decoded.expandedNodes, ["a|b|0"])
+        XCTAssertTrue(decoded.collapsedNodes.isEmpty)
+        XCTAssertEqual(decoded.searchHistory, ["火球"])
+        XCTAssertTrue(decoded.tabs.isEmpty)
+        XCTAssertNil(decoded.activeTabID)
+        XCTAssertTrue(decoded.shortcuts.isEmpty)
+    }
+
+    // MARK: - 目录展开规则（见 0038 补记）
+
+    private let tocAncestors = ["p.htm": ["section", "book", "chapter"]]
+
+    func testCurrentBranchAutoExpands() {
+        let state = ReaderState()
+        XCTAssertTrue(
+            state.isTOCNodeExpanded(
+                "book", currentPath: "p.htm", ancestors: tocAncestors))
+        XCTAssertFalse(
+            state.isTOCNodeExpanded(
+                "other", currentPath: "p.htm", ancestors: tocAncestors))
+    }
+
+    func testManualExpandWinsOutsideCurrentBranch() {
+        var state = ReaderState()
+        state.expandedNodes = ["other"]
+        XCTAssertTrue(
+            state.isTOCNodeExpanded(
+                "other", currentPath: "p.htm", ancestors: tocAncestors))
+    }
+
+    func testManualCollapseBeatsCurrentBranch() {
+        var state = ReaderState()
+        state.collapsedNodes = ["book"]
+        XCTAssertFalse(
+            state.isTOCNodeExpanded(
+                "book", currentPath: "p.htm", ancestors: tocAncestors))
+    }
+
+    func testCollapseBeatsExpandWhenBothPresent() {
+        var state = ReaderState()
+        state.collapsedNodes = ["book"]
+        state.expandedNodes = ["book"]
+        XCTAssertFalse(
+            state.isTOCNodeExpanded(
+                "book", currentPath: "p.htm", ancestors: tocAncestors))
     }
 }
 

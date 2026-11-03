@@ -10,6 +10,7 @@ struct FloatingBar: View {
     @Binding var showDrawer: Bool
     @Binding var showSettings: Bool
     var canGoBack: Bool
+    var canGoForward: Bool
     /// Mac 上目录常驻左侧，没有抽屉，也就不需要"目录"按钮（见 0050）。
     var showsTOCButton = true
 
@@ -17,20 +18,20 @@ struct FloatingBar: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    if showsTOCButton {
-                        button("list.bullet", label: "目录") {
-                            showDrawer.toggle()
-                        }
-                    }
-                    button("magnifyingglass", label: "搜索") {
-                        model.focusSearch()
-                    }
+            if showsTOCButton {
+                button("list.bullet", label: "目录") {
+                    showDrawer.toggle()
                 }
-                if canGoBack {
-                    button("chevron.backward", label: "返回") { model.goBack() }
-                }
+            }
+            button("magnifyingglass", label: "搜索") {
+                model.focusSearch()
+            }
+            // 始终显示：不可用时只变淡，避免按钮忽隐忽现
+            button("chevron.backward", label: "返回", enabled: canGoBack) {
+                model.goBack()
+            }
+            button("chevron.forward", label: "前进", enabled: canGoForward) {
+                model.goForward()
             }
             Spacer()
             if let page = model.currentPage {
@@ -48,10 +49,12 @@ struct FloatingBar: View {
             button("gearshape", label: "设置") { showSettings = true }
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: canGoBack)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: canGoForward)
     }
 
     private func button(
-        _ systemName: String, label: String, action: @escaping () -> Void
+        _ systemName: String, label: String, enabled: Bool = true,
+        action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
@@ -63,6 +66,8 @@ struct FloatingBar: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.35)
     }
 }
 

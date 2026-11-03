@@ -9,6 +9,8 @@ extension AppModel {
         if let current, current.path == path, abs(current.offset - offset) < 80 { return }
         store.savePosition(
             ReadingPosition(path: path, offset: offset, snippet: snippet))
+        // 顺手把当前标签页的滚动位置落盘，重启后切回来还在原处
+        persistTabs()
     }
 
     func setFontStep(_ step: ReadingMetrics.Step) {
@@ -61,7 +63,11 @@ extension AppModel {
     func setCurrent(page: Page?, offset: Int) {
         currentPage = page
         currentOffset = offset
-        if let page { rememberVisit(page) }
+        if let page {
+            rememberVisit(page)
+            // 页面标题要同步到 tab 条，标签页也一起落盘
+            persistTabs()
+        }
     }
 
     /// 记一次访问；同一页重复打开只更新时间并提到最前。
@@ -74,23 +80,24 @@ extension AppModel {
         store.saveState(state)
     }
 
-    func toggleExpansion(_ nodeID: String) {
-        if state.expandedNodes.contains(nodeID) {
-            state.expandedNodes.remove(nodeID)
-        } else {
+    /// 手动展开或折叠目录节点。折叠是显式操作，会压过"当前页所在分支自动展开"。
+    func setExpanded(_ nodeID: String, _ expanded: Bool) {
+        if expanded {
+            state.collapsedNodes.remove(nodeID)
             state.expandedNodes.insert(nodeID)
+        } else {
+            state.collapsedNodes.insert(nodeID)
+            state.expandedNodes.remove(nodeID)
         }
         store.saveState(state)
     }
 
-    /// 目录某节点是否展开：手动展开过，或它在当前页面的分支上。
+    /// 目录某节点是否展开。
+    ///
+    /// 规则在 `ReaderState.isTOCNodeExpanded`：手动折叠 > 手动展开 > 当前页面分支自动展开。
     func isExpanded(_ nodeID: String) -> Bool {
-        if let current = routes.last?.path,
-            ancestorNodes[current]?.contains(nodeID) == true
-        {
-            return true
-        }
-        return state.expandedNodes.contains(nodeID)
+        state.isTOCNodeExpanded(
+            nodeID, currentPath: routes.last?.path, ancestors: ancestorNodes)
     }
 
     func clearRecentPages() {
