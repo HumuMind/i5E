@@ -4,6 +4,7 @@ set -eu
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
+mkdir -p "$ROOT/build"
 
 if [ ! -f "i5E/Resources/content.db" ]; then
   echo "警告：i5E/Resources/content.db 不存在，App 启动后会提示内容库缺失。" >&2

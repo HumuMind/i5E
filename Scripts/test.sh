@@ -16,4 +16,16 @@ fi
 echo "→ swift test (CONTENT_DB=$CONTENT_DB)"
 # --disable-sandbox：SwiftPM 评估包清单时会再套一层 sandbox-exec，
 # 在受限环境里会被拒绝（"sandbox_apply: Operation not permitted"）。
-swift test --disable-sandbox "$@" 2>&1 | tail -25
+
+# 先落盘再 tail，避免管道的退出码被 tail 吞掉（测试失败必须让脚本失败）。
+LOG=$(mktemp "${TMPDIR:-/tmp}/i5e-test.XXXXXX")
+trap 'rm -f "$LOG"' EXIT
+
+if swift test --disable-sandbox "$@" >"$LOG" 2>&1; then
+  STATUS=0
+else
+  STATUS=$?
+fi
+
+tail -25 "$LOG"
+exit "$STATUS"

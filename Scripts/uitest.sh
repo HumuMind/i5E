@@ -14,6 +14,7 @@ set -eu
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
+mkdir -p "$ROOT/build"
 
 DESTINATION=${DESTINATION:-platform=macOS}
 DERIVED=${DERIVED_DATA:-"$ROOT/build/DDTest"}

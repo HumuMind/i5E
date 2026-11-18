@@ -39,17 +39,25 @@ iPad 是主要阅读场景；iPhone 适合随手查阅；Mac 适合大屏对照�
 
 ## 开发
 
-```bash
-python3 Tools/content/run.py build --pack   # 生成内容库（约 50 秒）
-./Scripts/stage-content.sh                  # 放进 App 资源目录（40 MB，不入库）
+需要 Xcode 26（Swift 6.2）、Python 3.10+ 和 `lxml`。内容来自上游的独立 clone，不会进本仓库。
 
+```bash
+# 一次性准备
+git clone --depth 1 https://github.com/DND5eChm/DND5e_chm.git
+python3 -m pip install lxml
+
+# 生成内容库并放进 App 资源目录（约 38 MB，不入库）
+python3 Tools/content/run.py build --pack   # 约 50 秒
+./Scripts/stage-content.sh
+
+# 构建与检查
 ./Scripts/build.sh                          # 构建 App（iOS 模拟器）
-./Scripts/test.sh                           # 数据层测试（49 个，含跨语言正文哈希）
+./Scripts/test.sh                           # 数据层测试（54 个，含跨语言正文哈希）
 ./Scripts/lint.sh                           # swift-format + swiftlint
 ./Scripts/uitest.sh                         # UI 冒烟测试（macOS，约 35 秒）
 ```
 
-或者直接打开 `i5E.xcodeproj`。最低 iOS / macOS 26。
+完成内容库步骤后，也可以直接打开 `i5E.xcodeproj`。最低 iOS / macOS 26。
 
 `Scripts/build.sh` 会把完整日志写到 `build/xcodebuild.log`，只把 error/warning 打到终端。
 

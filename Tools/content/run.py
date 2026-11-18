@@ -465,6 +465,15 @@ def main() -> int:
     ap.add_argument("--pack", action="store_true", help="生成原文归档并跑 C8")
     args = ap.parse_args()
 
+    if not SRC.is_dir():
+        print(f"找不到上游内容目录：{SRC}", file=sys.stderr)
+        print(
+            "先 clone 上游：git clone --depth 1 "
+            "https://github.com/DND5eChm/DND5e_chm.git",
+            file=sys.stderr,
+        )
+        return 1
+
     t0 = time.time()
     paths = collect(args.limit)
     print(f"页面 {len(paths)}", flush=True)

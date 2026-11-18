@@ -18,3 +18,8 @@ build/SourcePackages/
 build/PackageCache/
 build/DD/
 Packages/ContentKit/.build/
+
+# Xcode 用户状态（含本机绝对路径，不提交）
+**/xcuserdata/
+*.xcuserstate
+*.xcresult
