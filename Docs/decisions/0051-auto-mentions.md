@@ -79,3 +79,13 @@ App 端只加"轻下划线 + 开关"，解析与跳转沿用 [0018](0018-cross-r
 
 - 若读者反馈"链接太密/误链太多"，先调频率阈值与 deny 名单，再考虑只链专有名词。
 - 若开关关掉后仍觉得页面花，说明问题在样式而不是链接数量。
+
+## 补记 · 2026-11-03：下划线可配置
+
+设置里新增二级页「跳转 → 下划线样式」：颜色（拾色器，支持透明度）、粗细（标准 / 粗）、恢复默认。
+
+- 默认仍是 `theme.link.opacity(0.6)` + 细线，视觉上保持克制。
+- 配置存 `ReaderState.mentionUnderlineColor` / `mentionUnderlineThick`，旧存档没有这两个字段时按默认。
+- macOS 正文从 SwiftUI `Text` 换成 `NSTextView`（对应 iOS 的 `UITextView`），才能同时控制 underlineColor 和 `NSUnderlineStyle.thick`；
+  链接点击、选中复制和 Cmd+点击开新 tab 仍走原来的 `handleLink`。
+- 标题、列表、表格仍是 SwiftUI `Text`：颜色能改（`Text.LineStyle`），粗细改不了，保持默认细线。

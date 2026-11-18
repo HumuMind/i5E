@@ -229,6 +229,7 @@ struct ReaderView: View {
             }
         }
         .environment(\.readingTheme, theme)
+        .environment(\.mentionUnderline, model.mentionUnderlineStyle)
         .environment(\.usesStyleSheet, page.usesStyleSheet)
         .environment(
             \.openURL,

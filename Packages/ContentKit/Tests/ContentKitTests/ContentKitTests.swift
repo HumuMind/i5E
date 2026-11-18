@@ -403,6 +403,8 @@ final class ReaderStateTests: XCTestCase {
         ]
         state.activeTabID = activeTab
         state.shortcuts = ["search": KeyShortcut(key: "g", command: true)]
+        state.mentionUnderlineColor = "#FF0000CC"
+        state.mentionUnderlineThick = true
         s.saveState(state)
 
         let loaded = s.loadState()
@@ -413,6 +415,8 @@ final class ReaderStateTests: XCTestCase {
         XCTAssertEqual(loaded.tabs, state.tabs)
         XCTAssertEqual(loaded.activeTabID, activeTab)
         XCTAssertEqual(loaded.shortcuts, state.shortcuts)
+        XCTAssertEqual(loaded.mentionUnderlineColor, "#FF0000CC")
+        XCTAssertEqual(loaded.mentionUnderlineThick, true)
     }
 
     /// 旧版本的 JSON 没有 collapsedNodes；升级后不能把整份状态解坏。
@@ -428,6 +432,8 @@ final class ReaderStateTests: XCTestCase {
         XCTAssertTrue(decoded.tabs.isEmpty)
         XCTAssertNil(decoded.activeTabID)
         XCTAssertTrue(decoded.shortcuts.isEmpty)
+        XCTAssertNil(decoded.mentionUnderlineColor)
+        XCTAssertNil(decoded.mentionUnderlineThick)
     }
 
     // MARK: - 目录展开规则（见 0038 补记）

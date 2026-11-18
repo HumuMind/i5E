@@ -1,6 +1,13 @@
 import ContentKit
 import SwiftUI
 
+#if canImport(AppKit)
+    import AppKit
+#endif
+#if canImport(UIKit)
+    import UIKit
+#endif
+
 /// 自动链接的详细程度（见 0051）：0 关闭 / 1 精简 / 2 标准 / 3 详细。
 /// run 上的 `m` 是"它最早出现在哪一档"，`m <= 当前档位` 才渲染成链接。
 private struct MentionLevelKey: EnvironmentKey {
@@ -21,7 +28,8 @@ enum AttributedText {
         _ runs: [Run], size: CGFloat, bold: Bool = false,
         highlight: String? = nil, theme: ReadingTheme = .light,
         defaultColor: Color? = nil, largeText: Bool = false,
-        mentionLevel: Int = 3
+        mentionLevel: Int = 3,
+        mentionUnderline: MentionUnderlineStyle = MentionUnderlineStyle()
     ) -> AttributedString {
         var result = AttributedString()
         for run in runs {
@@ -60,9 +68,23 @@ enum AttributedText {
                 if run.u == 1 {
                     piece.underlineStyle = .single
                 } else if mention {
-                    // 自动链接：正文色 + 淡下划线
+                    // 自动链接：默认是跟随主题的淡色细线，可在设置里改颜色/粗细。
+                    // SwiftUI Text 不直接支持粗细，但会认平台的 underline 属性。
+                    let underlineColor = mentionUnderline.color ?? theme.link.opacity(0.6)
+                    // 颜色走 SwiftUI 的 LineStyle；粗细走平台的 underlineStyle（.single/.thick）。
                     piece.underlineStyle = Text.LineStyle(
-                        pattern: .solid, color: theme.link.opacity(0.6))
+                        pattern: .solid, color: underlineColor)
+                    let underlineStyle: NSUnderlineStyle =
+                        mentionUnderline.thick ? [.single, .thick] : .single
+                    #if canImport(AppKit)
+                        piece[
+                            AttributeScopes.AppKitAttributes.UnderlineStyleAttribute.self
+                        ] = underlineStyle
+                    #elseif canImport(UIKit)
+                        piece[
+                            AttributeScopes.UIKitAttributes.UnderlineStyleAttribute.self
+                        ] = underlineStyle
+                    #endif
                 } else if run.href != nil && run.m == nil {
                     piece.underlineStyle = .single
                 }

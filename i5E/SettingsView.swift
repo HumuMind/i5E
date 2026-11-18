@@ -4,21 +4,39 @@ import SwiftUI
 /// 设置内容。外层由 `OverlayPanel` 提供卡片与关闭行为。
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
+
+    private enum Page {
+        case main
+        case mentionUnderline
+        #if os(macOS)
+            case shortcuts
+        #endif
+    }
+
     #if os(macOS)
-        // 调试/截图用：`-openSettings 1 -openShortcuts 1` 直接进快捷键页
-        @State private var showShortcuts = UserDefaults.standard.bool(forKey: "openShortcuts")
+        // 调试/截图用：`-openShortcuts 1` / `-openMentionUnderline 1`
+        @State private var page: Page =
+            UserDefaults.standard.bool(forKey: "openShortcuts")
+            ? .shortcuts
+            : (UserDefaults.standard.bool(forKey: "openMentionUnderline")
+                ? .mentionUnderline : .main)
+    #else
+        @State private var page: Page =
+            UserDefaults.standard.bool(forKey: "openMentionUnderline")
+            ? .mentionUnderline : .main
     #endif
 
     var body: some View {
-        #if os(macOS)
-            if showShortcuts {
-                ShortcutsView { showShortcuts = false }
-            } else {
-                settingsForm
-            }
-        #else
+        switch page {
+        case .main:
             settingsForm
+        case .mentionUnderline:
+            MentionUnderlineView { page = .main }
+        #if os(macOS)
+            case .shortcuts:
+                ShortcutsView { page = .main }
         #endif
+        }
     }
 
     private var settingsForm: some View {
@@ -64,6 +82,23 @@ struct SettingsView: View {
                 )
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+
+                Button {
+                    page = .mentionUnderline
+                } label: {
+                    HStack {
+                        Text("下划线样式")
+                        Spacer()
+                        Text(model.hasCustomMentionUnderline ? "自定义" : "默认")
+                            .foregroundStyle(.secondary)
+                        Image(systemName: "chevron.forward")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             } header: {
                 Text("跳转")
             }
@@ -71,7 +106,7 @@ struct SettingsView: View {
             #if os(macOS)
                 Section("快捷键") {
                     Button {
-                        showShortcuts = true
+                        page = .shortcuts
                     } label: {
                         HStack {
                             Text("配置快捷键")

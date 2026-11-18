@@ -9,6 +9,7 @@ struct TableBlockView: View {
 
     @Environment(\.readingTheme) private var theme
     @Environment(\.mentionLevel) private var mentionLevel
+    @Environment(\.mentionUnderline) private var mentionUnderline
 
     /// 一次算好的排版结果。
     ///
@@ -304,7 +305,8 @@ struct TableBlockView: View {
                         Text(
                             AttributedText.make(
                                 runs, size: layout.fontSize, bold: cell.header == true,
-                                theme: theme, mentionLevel: mentionLevel)
+                                theme: theme, mentionLevel: mentionLevel,
+                                mentionUnderline: mentionUnderline)
                         )
                         .frame(maxWidth: .infinity, alignment: .leading)
                     case .image(let run):
@@ -316,7 +318,8 @@ struct TableBlockView: View {
             Text(
                 AttributedText.make(
                     inner.runsOrEmpty, size: layout.fontSize, bold: cell.header == true,
-                    theme: theme, mentionLevel: mentionLevel)
+                    theme: theme, mentionLevel: mentionLevel,
+                    mentionUnderline: mentionUnderline)
             )
             .frame(maxWidth: .infinity, alignment: .leading)
         }

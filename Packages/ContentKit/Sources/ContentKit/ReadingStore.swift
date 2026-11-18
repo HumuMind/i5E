@@ -110,12 +110,16 @@ public struct ReaderState: Codable, Sendable {
     public var activeTabID: UUID?
     /// 自定义快捷键：动作标识 → 按键。没有的动作用默认值。
     public var shortcuts: [String: KeyShortcut] = [:]
+    /// 自动链接下划线的自定义颜色（#rrggbbaa）；nil 用主题默认。
+    public var mentionUnderlineColor: String?
+    /// 自动链接下划线是否用粗线；nil 用默认细线。
+    public var mentionUnderlineThick: Bool?
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case expandedNodes, collapsedNodes, recentPages, searchHistory, tabs, activeTabID
-        case shortcuts
+        case shortcuts, mentionUnderlineColor, mentionUnderlineThick
     }
 
     /// 手写解码：旧版本没有 `collapsedNodes` / `tabs` 等字段，缺字段时按空值处理，
@@ -134,6 +138,10 @@ public struct ReaderState: Codable, Sendable {
         activeTabID = try container.decodeIfPresent(UUID.self, forKey: .activeTabID)
         shortcuts =
             try container.decodeIfPresent([String: KeyShortcut].self, forKey: .shortcuts) ?? [:]
+        mentionUnderlineColor = try container.decodeIfPresent(
+            String.self, forKey: .mentionUnderlineColor)
+        mentionUnderlineThick = try container.decodeIfPresent(
+            Bool.self, forKey: .mentionUnderlineThick)
     }
 }
 

@@ -13,6 +13,7 @@ struct ListBlockView: View {
 
     @Environment(\.readingTheme) private var theme
     @Environment(\.mentionLevel) private var mentionLevel
+    @Environment(\.mentionUnderline) private var mentionUnderline
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -27,7 +28,9 @@ struct ListBlockView: View {
                             Text(
                                 AttributedText.make(
                                     item.runs, size: metrics.bodySize,
-                                    highlight: highlight, theme: theme, mentionLevel: mentionLevel)
+                                    highlight: highlight, theme: theme,
+                                    mentionLevel: mentionLevel,
+                                    mentionUnderline: mentionUnderline)
                             )
                             .lineSpacing(metrics.lineSpacing)
                         }

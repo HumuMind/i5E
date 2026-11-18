@@ -16,27 +16,7 @@
 
         var body: some View {
             VStack(spacing: 0) {
-                HStack(spacing: 8) {
-                    Button {
-                        onBack()
-                    } label: {
-                        Label("设置", systemImage: "chevron.backward")
-                            .font(.subheadline)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(theme.accent)
-
-                    Spacer()
-                    Text("快捷键")
-                        .font(.headline)
-                        .foregroundStyle(theme.text)
-                    Spacer()
-                    // 和返回按钮宽度对称，让标题保持在中间
-                    Color.clear.frame(width: 46, height: 1)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-
+                SettingsSubpageHeader(title: "快捷键") { onBack() }
                 Divider().overlay(theme.border)
 
                 ScrollView {
